@@ -1,0 +1,22 @@
+# Laptop demo: cloud control plane and one edge container together.
+# Prosys (or any OPC UA server) stays on the Windows host, not in this compose.
+#
+#   docker compose -f docker-compose.dev.yml up -d --build
+#
+# Edge reaches Mosquitto by compose DNS. OPC UA uses host.docker.internal
+# unless OPC_UA_ENDPOINT is set to the simulator URL.
+
+include:
+  - docker-compose.cloud.yml
+  - docker-compose.edge.yml
+
+services:
+  plant-edge:
+    environment:
+      MQTT_BROKER_URL: tcp://mosquitto:1883
+      OPC_UA_ENDPOINT: ${OPC_UA_ENDPOINT:-${OPC_ENDPOINT_URL:-opc.tcp://host.docker.internal:53530/OPCUA/SimulationServer}}
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - smart-factory

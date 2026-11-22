@@ -1,0 +1,12 @@
+---
+description: Production constraints for central cloud host. Always apply.
+alwaysApply: true
+---
+# Production Constraints (Hetzner CX23 - 4GB RAM, 3 vCPU, 40GB Disk)
+
+- **Stack & Topology:** Next.js UI, Spring Boot backend, PostgreSQL + TimescaleDB, and MQTT broker centrally; plant-side edge collectors/command workers handle OPC UA / S7 / Modbus TCP (and gateways for Modbus RTU / PROFIBUS / BACnet MS/TP). Never do direct backend-to-PLC real-time PROFINET I/O.
+- **Data & Command Guardrails:** Use per-tag deadband and batch inserts into TimescaleDB; keep hot tag state in cache; route all writes through backend validation, interlocks, and immutable audit logs before publishing commands to plant edge workers. Never bypass PLC/ladder interlocks.
+- **Memory/CPU:** Cap Tomcat threads (max 20) and explicitly bound JVM heap and PostgreSQL memory so services fit safely inside 4GB RAM. No unbounded in-memory collections, tag caches, or SSR fetches. Use pagination, TimescaleDB retention/compression, and SSE/WebSockets. Keep components and controllers <200 lines.
+- **Disk:** Do not retain large build artifacts or unbounded offline edge queues. Run `docker builder prune -af` when disk usage exceeds 70%.
+- **LLM/Network:** Outbound LLM calls only to DeepInfra with a 120s timeout; keep LLMs out of safety/interlock decisions. Reject untrusted DNS resolution from client headers.
+- **Testing:** Keep CX23 focused on running production services; run heavy backend, edge, simulator (Prosys OPC UA / Modbus / S7), and E2E tests locally or in CI.

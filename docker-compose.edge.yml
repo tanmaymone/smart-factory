@@ -1,0 +1,35 @@
+# One plant-edge container per plant PC. It dials OPC UA on the factory LAN and
+# MQTT to the cloud broker. It does not join the cloud compose network.
+#
+#   $env:MQTT_BROKER_URL = "tcp://<cloud-host>:1883"
+#   $env:OPC_UA_ENDPOINT = "opc.tcp://<plc-or-prosys-host>:53530/OPCUA/SimulationServer"
+#   $env:EDGE_MQTT_CLIENT_ID = "plant-edge-indore"
+#   docker compose -f docker-compose.edge.yml up -d --build
+#
+# Diagnostics stay on this machine only: http://127.0.0.1:8081/
+
+services:
+  plant-edge:
+    build:
+      context: ./plant-edge-service
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-tcp://host.docker.internal:1883}
+      OPC_UA_ENDPOINT: ${OPC_UA_ENDPOINT:-${OPC_ENDPOINT_URL:-opc.tcp://host.docker.internal:53530/OPCUA/SimulationServer}}
+      EDGE_MQTT_CLIENT_ID: ${EDGE_MQTT_CLIENT_ID:-plant-edge}
+      EDGE_BUFFER_PATH: /data/edge-outbound.db
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m -XX:MaxMetaspaceSize=128m"
+    ports:
+      - "127.0.0.1:8081:8081"
+    volumes:
+      - edge_buffer:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+volumes:
+  edge_buffer:

@@ -1,0 +1,51 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: smart-factory-timescaledb
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-smartfactory}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartfactory}
+      POSTGRES_DB: ${POSTGRES_DB:-smart_factory}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    networks:
+      - smart-factory
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smartfactory} -d ${POSTGRES_DB:-smart_factory}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: smart-factory-mosquitto
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+    volumes:
+      - ./infra/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    networks:
+      - smart-factory
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/broker/uptime' -C 1 -W 3 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+networks:
+  smart-factory:
+    driver: bridge
+
+volumes:
+  timescale_data:
+  mosquitto_data:
+  mosquitto_log:

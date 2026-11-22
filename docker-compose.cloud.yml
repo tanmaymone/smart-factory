@@ -1,0 +1,81 @@
+# Cloud control plane: TimescaleDB + Mosquitto + central-backend + web-frontend.
+# The plant edge is a separate compose file and runs on the plant PC.
+#
+#   docker compose -f docker-compose.cloud.yml up -d --build
+#
+# Anonymous MQTT on 1883 is the dev broker. Keep that port on a VPN.
+# Do not publish it on the public internet. TLS and broker username are not wired yet.
+
+include:
+  - docker-compose.yml
+
+services:
+  timescaledb:
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - max_connections=40
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=64MB
+    shm_size: 512mb
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+
+  mosquitto:
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  central-backend:
+    build:
+      context: ./central-backend
+    environment:
+      POSTGRES_HOST: timescaledb
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-smartfactory}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartfactory}
+      POSTGRES_DB: ${POSTGRES_DB:-smart_factory}
+      MQTT_BROKER_URL: tcp://mosquitto:1883
+      OPC_ENDPOINT_URL: ${OPC_ENDPOINT_URL:-opc.tcp://localhost:53530/OPCUA/SimulationServer}
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m -XX:MaxMetaspaceSize=128m"
+    ports:
+      - "8080:8080"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - smart-factory
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  web-frontend:
+    build:
+      context: ./web-frontend
+      args:
+        BACKEND_ORIGIN: http://central-backend:8080
+    environment:
+      BACKEND_ORIGIN: http://central-backend:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      central-backend:
+        condition: service_healthy
+    networks:
+      - smart-factory
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M

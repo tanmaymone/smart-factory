@@ -1,0 +1,10 @@
+---
+description: Testing rules for smart factory, edge, API, and UI workflows. Always apply.
+alwaysApply: true
+---
+# Testing Rules
+- **Regression:** Add tests at the lowest layer for every bug. Tag with matrix IDs (`RCA-*`, `LAND-*`, `GW-*`, `SF-*`, `EDGE-*`).
+- **Layers:** Unit (mocked), Integration (Spring context / Testcontainers with PostgreSQL + TimescaleDB & MQTT), Protocol/Edge (OPC UA simulator / deadband / offline buffer replay / command ACK), API BDD (Karate), E2E (Playwright).
+- **Negative Testing:** Assert stable error `code` fields, invalid inputs, out-of-bounds/interlock-rejected commands, timeouts, offline broker/WAN buffering, and empty states.
+- **Determinism:** No `Thread.sleep` or `waitForTimeout`. Use `expect` polling, deterministic clocks/injectable timestamps, or explicit stream/ACK assertions.
+- **Parallelism:** Derive worker counts from logical CPUs. Use `Invoke-ParallelTestSuites.ps1`.

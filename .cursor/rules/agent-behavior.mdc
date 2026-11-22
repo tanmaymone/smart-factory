@@ -1,0 +1,14 @@
+---
+description: Core agent behavior. Always apply.
+alwaysApply: true
+---
+# Agent Rules
+
+- **Architecture context:** Read `.cursor/architecture.md` before broad exploration — single token-optimized map of stack, topology, data flow, MQTT topics (`site/{siteId}/line/{lineId}/...`), protocols, and egress.
+- **Tokens are constrained:** Limit file reads. Do not read entire files >200 lines; use targeted symbol search instead.
+- **Code generation:** Output only modified blocks, no full-file rewrites. Break multi-file refactors into single-file steps.
+- **Execution:** Delete dead code before optimizing. Run tools concurrently when safe.
+- **Troubleshooting:** Reconcile changes against compiler/linter feedback. Stop and ask the user after 2 failed compile/test loops; do not guess repeatedly.
+- **Quality:** Prefer ASTs/types over pattern matching. Test boundaries (empty inputs, deadband thresholds, out-of-range setpoints, interlocks, race conditions, and reconnect replay). Enforce single-writer ownership and never bypass backend validation or PLC/ladder interlocks for actuator/valve writes.
+- **Architecture Synchronization:** If any implementation change alters routing topology, MQTT topic contracts, edge/cloud sync behavior, a new API endpoint contract, a database table/TimescaleDB hypertable/entity, or external service/PLC/OPC UA integrations, immediately update `.cursor/architecture.md` in the same condensed shorthand style before completing the task.
+- **Deploy without commit:** Deployment does not require a git commit unless requested by the user or required for release traceability.

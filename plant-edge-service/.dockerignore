@@ -1,0 +1,6 @@
+target
+src/test
+data
+*.md
+.git
+.gitignore

@@ -1,0 +1,31 @@
+---
+description: SCADA dark-slate styling paired selectively with shadcn/ui and Aceternity UI components
+globs: ["**/*.tsx", "**/*.css"]
+alwaysApply: true
+---
+
+# SCADA UI System Rule (shadcn/ui + Aceternity UI)
+
+## 1. Visual Tokens & Fonts
+- Default to the dark slate SCADA aesthetic (`bg-slate-950` ground, `bg-slate-900` elevated panels, `border-slate-800` hairline borders, `text-slate-100` primary text, `text-slate-400` secondary labels).
+- Load **Inter** for general UI text and **JetBrains Mono** for telemetry figures, counters, IDs, and logs. Always apply `font-mono tabular-nums` to live or numeric readouts so digits do not shift horizontally during updates.
+- Preserve semantic status colors consistently:
+  - **Cyan** (`cyan-400`/`500`): Primary process curve / AI telemetry
+  - **Indigo** (`indigo-400`/`500`): Secondary setpoint / manual control
+  - **Amber** (`amber-400`/`500`): Warnings, countdowns, secondary flow/rule targets
+  - **Emerald** (`emerald-400`/`500`): Connected, nominal, rule-enforced states
+  - **Rose/Red** (`rose-500`/`red-500`): Faults, threshold breaches, critical alarms
+- Define `.glow-green`, `.glow-amber`, `.glow-red`, and `.glow-blue` box-shadow utilities and apply them sparingly on active status badges or critical alerts rather than every card.
+
+## 2. Component Selection (shadcn/ui First, Aceternity Only When Needed)
+- **Use `shadcn/ui` by default** for functional control-room UI: cards, sliders, buttons, badges, switches, selects, dialogs, tabs, tables, and sheets. Style them with the dark slate tokens above rather than introducing conflicting light/pastel themes.
+- **Use Aceternity UI selectively** only when visual depth or motion genuinely helps scannability or hierarchy (e.g., spotlight/border-beam cards for active AI/rule status, subtle grid/dot backgrounds on hero/overview surfaces, or smooth layout transitions).
+- **Do NOT use Aceternity UI** for high-frequency telemetry readouts, dense data tables, sliders, or log terminals where heavy animations or extra DOM wrappers could hurt readability or render performance.
+
+## 3. Tailwind v4 & CSS Layer Hygiene
+- When using Tailwind v4 (`@import "tailwindcss";`), wrap custom classes (`.mono`, `.glow-green`, `.glow-amber`, `.glow-red`, `.glow-blue`) inside `@layer components` and register font/theme tokens cleanly instead of relying on unlayered CSS rules or CDN `<script>` tags that can override `shadcn/ui` utilities.
+- Keep `1px` borders and subtle glow/blur accents restrained so control panels stay crisp under continuous real-time updates.
+
+## 4. High-Frequency Telemetry & Re-render Isolation
+- Keep high-frequency (`1s` or faster tick) telemetry state isolated in small leaf components (such as individual KPI readouts, countdown timers, or chart series) rather than storing tick state at the top-level dashboard or wrapping ticking containers in heavy Aceternity animation components.
+- Avoid triggering expensive layout/spotlight animations on every telemetry tick; re-render only the specific readout or chart series that changed.

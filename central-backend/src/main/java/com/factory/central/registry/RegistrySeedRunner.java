@@ -1,0 +1,149 @@
+package com.factory.central.registry;
+
+import java.util.List;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+@Component
+public class RegistrySeedRunner implements CommandLineRunner {
+
+    private static final Logger log = LoggerFactory.getLogger(RegistrySeedRunner.class);
+
+    private final SiteRepository siteRepository;
+    private final LineRepository lineRepository;
+    private final TagMappingRepository tagMappingRepository;
+    private final RegistryProperties registryProperties;
+
+    public RegistrySeedRunner(
+            SiteRepository siteRepository,
+            LineRepository lineRepository,
+            TagMappingRepository tagMappingRepository,
+            RegistryProperties registryProperties) {
+        this.siteRepository = siteRepository;
+        this.lineRepository = lineRepository;
+        this.tagMappingRepository = tagMappingRepository;
+        this.registryProperties = registryProperties;
+    }
+
+    @Override
+    @Transactional
+    public void run(String... args) {
+        ensureSite(new Site("INDORE", "Indore Plant", "Asia/Kolkata", SiteStatus.ONLINE));
+        ensureSite(new Site("PUNE", "Pune Plant", "Asia/Kolkata", SiteStatus.ONLINE));
+
+        ensureLine(new Line("INDORE", "LINE-01", "Reactor Line 1"));
+        ensureLine(new Line("INDORE", "LINE-02", "Packaging Line"));
+        ensureLine(new Line("PUNE", "LINE-01", "Reactor Line 1"));
+
+        String endpoint = registryProperties.getOpcEndpointUrl();
+        for (TagSeed seed : sampleTags()) {
+            ensureTag(seed, endpoint);
+        }
+
+        log.info(
+                "Registry seed complete: sites={}, lines={}, tags={}",
+                siteRepository.count(),
+                lineRepository.count(),
+                tagMappingRepository.count());
+    }
+
+    private void ensureSite(Site site) {
+        if (siteRepository.findById(site.getId()).isEmpty()) {
+            siteRepository.save(site);
+        }
+    }
+
+    private void ensureLine(Line line) {
+        LineId id = new LineId(line.getSiteId(), line.getLineId());
+        if (lineRepository.findById(id).isEmpty()) {
+            lineRepository.save(line);
+        }
+    }
+
+    private void ensureTag(TagSeed seed, String endpointUrl) {
+        tagMappingRepository
+                .findBySiteIdAndLineIdAndTagCode(seed.siteId(), seed.lineId(), seed.tagCode())
+                .ifPresentOrElse(
+                        existing -> {
+                            if (existing.reconcileSeed(
+                                    endpointUrl,
+                                    seed.warningLow(),
+                                    seed.warningHigh(),
+                                    seed.criticalLow(),
+                                    seed.criticalHigh())) {
+                                tagMappingRepository.save(existing);
+                            }
+                        },
+                        () -> tagMappingRepository.save(seed.toEntity(endpointUrl)));
+    }
+
+    private static List<TagSeed> sampleTags() {
+        return List.of(
+                TagSeed.valve("INDORE", "LINE-01", "VALVE_101_POS", "Inlet valve position", "ns=3;i=1001"),
+                TagSeed.temp("INDORE", "LINE-01", "REACTOR_TEMP_C", "Reactor temperature", "ns=3;i=1002"),
+                TagSeed.setpoint("INDORE", "LINE-01", "REACTOR_TEMP_SP", "Reactor temperature setpoint", "ns=3;i=1003"),
+                TagSeed.valve("INDORE", "LINE-02", "VALVE_201_POS", "Packaging valve position", "ns=3;i=1004"),
+                TagSeed.valve("PUNE", "LINE-01", "VALVE_101_POS", "Inlet valve position", "ns=3;i=1001"),
+                TagSeed.temp("PUNE", "LINE-01", "REACTOR_TEMP_C", "Reactor temperature", "ns=3;i=1002"),
+                TagSeed.setpoint("PUNE", "LINE-01", "REACTOR_TEMP_SP", "Reactor temperature setpoint", "ns=3;i=1003"));
+    }
+
+    private record TagSeed(
+            String siteId,
+            String lineId,
+            String tagCode,
+            String description,
+            String externalAddress,
+            String unit,
+            boolean writable,
+            Double minValue,
+            Double maxValue,
+            double deadband,
+            Double warningLow,
+            Double warningHigh,
+            Double criticalLow,
+            Double criticalHigh) {
+
+        static TagSeed valve(String siteId, String lineId, String tagCode, String description, String address) {
+            return new TagSeed(
+                    siteId, lineId, tagCode, description, address, "%", true, 0.0, 100.0, 0.5, null, null, null, null);
+        }
+
+        static TagSeed temp(String siteId, String lineId, String tagCode, String description, String address) {
+            return new TagSeed(
+                    siteId, lineId, tagCode, description, address, "°C", false, null, null, 0.2, 30.0, 70.0, 20.0, 80.0);
+        }
+
+        static TagSeed setpoint(String siteId, String lineId, String tagCode, String description, String address) {
+            return new TagSeed(
+                    siteId, lineId, tagCode, description, address, "°C", true, 15.0, 90.0, 0.1, null, null, null, null);
+        }
+
+        TagMapping toEntity(String endpointUrl) {
+            return new TagMapping(
+                    UUID.randomUUID(),
+                    siteId,
+                    lineId,
+                    tagCode,
+                    description,
+                    Protocol.OPC_UA,
+                    endpointUrl,
+                    externalAddress,
+                    TagDataType.FLOAT,
+                    unit,
+                    writable,
+                    minValue,
+                    maxValue,
+                    deadband,
+                    warningLow,
+                    warningHigh,
+                    criticalLow,
+                    criticalHigh,
+                    null);
+        }
+    }
+}

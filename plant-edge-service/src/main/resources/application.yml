@@ -1,0 +1,74 @@
+server:
+  port: 8081
+  # Host runs stay on loopback. The edge container sets SERVER_ADDRESS=0.0.0.0 and publishes 127.0.0.1:8081 on the plant PC.
+  address: 127.0.0.1
+  tomcat:
+    threads:
+      max: 8
+
+spring:
+  application:
+    name: plant-edge-service
+
+app:
+  opcua:
+    # Prefer OPC_UA_ENDPOINT; fall back to OPC_ENDPOINT_URL (shared with central-backend).
+    endpoint-url: ${OPC_UA_ENDPOINT:${OPC_ENDPOINT_URL:opc.tcp://localhost:53530/OPCUA/SimulationServer}}
+    request-timeout-ms: 5000
+    publishing-interval-ms: 500
+    monitored-item-queue-size: 10
+    reconnect-initial-ms: 1000
+    reconnect-max-ms: 30000
+    tags:
+      - site-id: INDORE
+        line-id: LINE-01
+        tag-code: VALVE_101_POS
+        node-id: ns=3;i=1001
+        deadband: 0.5
+      - site-id: INDORE
+        line-id: LINE-01
+        tag-code: REACTOR_TEMP_C
+        node-id: ns=3;i=1002
+        deadband: 0.2
+      - site-id: INDORE
+        line-id: LINE-01
+        tag-code: REACTOR_TEMP_SP
+        node-id: ns=3;i=1003
+        deadband: 0.1
+      - site-id: INDORE
+        line-id: LINE-02
+        tag-code: VALVE_201_POS
+        node-id: ns=3;i=1004
+        deadband: 0.5
+      - site-id: PUNE
+        line-id: LINE-01
+        tag-code: VALVE_101_POS
+        node-id: ns=3;i=1001
+        deadband: 0.5
+      - site-id: PUNE
+        line-id: LINE-01
+        tag-code: REACTOR_TEMP_C
+        node-id: ns=3;i=1002
+        deadband: 0.2
+      - site-id: PUNE
+        line-id: LINE-01
+        tag-code: REACTOR_TEMP_SP
+        node-id: ns=3;i=1003
+        deadband: 0.1
+  buffer:
+    path: ${EDGE_BUFFER_PATH:./data/edge-outbound.db}
+    max-records: ${EDGE_BUFFER_MAX_RECORDS:10000}
+    drain-batch-size: ${EDGE_BUFFER_DRAIN_BATCH:32}
+    drain-pause-ms: ${EDGE_BUFFER_DRAIN_PAUSE_MS:10}
+  mqtt:
+    # Full URL wins. On a plant PC this is the cloud broker; the laptop dev compose uses tcp://mosquitto:1883.
+    broker-url: ${MQTT_BROKER_URL:tcp://localhost:${MQTT_PORT:1883}}
+    client-id: ${EDGE_MQTT_CLIENT_ID:plant-edge}
+    qos: 1
+    reconnect-initial-ms: 1000
+    reconnect-max-ms: 30000
+
+logging:
+  level:
+    root: INFO
+    com.factory.edge: INFO
