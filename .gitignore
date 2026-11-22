@@ -1,0 +1,21 @@
+# Dependencies and build output (any module)
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+target/
+
+# Local environment. Commit .env.example only.
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# OS / editor / logs
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+*.iml

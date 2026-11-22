@@ -4,3 +4,7 @@
 .classpath
 .project
 .settings/
+.DS_Store
+
+# SQLite store-and-forward buffer (created at runtime)
+/data/
