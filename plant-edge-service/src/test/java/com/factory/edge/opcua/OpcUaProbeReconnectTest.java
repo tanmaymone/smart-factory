@@ -82,6 +82,36 @@ class OpcUaProbeReconnectTest {
     }
 
     @Test
+    void unavailableAtStartEntersBackoffThenRecovers() {
+        doThrow(new OpcUaUnavailableException("OPC UA discovery failed: Connection refused"))
+                .doAnswer(
+                        invocation -> {
+                            readingCallback = invocation.getArgument(1);
+                            sessionLostCallback = invocation.getArgument(2);
+                            return null;
+                        })
+                .when(session)
+                .start(anyList(), any(), any());
+
+        probe.start();
+
+        assertThat(probe.currentPhase()).isEqualTo(OpcUaProbe.Phase.BACKOFF);
+        assertThat(probe.isRunning()).isTrue();
+        assertThat(scheduler.scheduleCount).isEqualTo(1);
+        assertThat(scheduler.lastDelayMs).isEqualTo(1000L);
+        assertThat(probe.linkHealth().snapshot().lastError())
+                .contains("OPC UA server is not live at")
+                .contains(properties.getEndpointUrl());
+
+        scheduler.runLastTask();
+
+        assertThat(probe.currentPhase()).isEqualTo(OpcUaProbe.Phase.UP);
+        assertThat(probe.linkHealth().snapshot().status()).isEqualTo(OpcUaLinkHealth.CONNECTED);
+        assertThat(probe.currentBackoffMs()).isEqualTo(1000L);
+        verify(session, times(2)).start(anyList(), any(), any());
+    }
+
+    @Test
     void duplicateLossWhileBackoffDoesNotScheduleSecondChain() {
         probe.start();
         sessionLostCallback.accept(1L);

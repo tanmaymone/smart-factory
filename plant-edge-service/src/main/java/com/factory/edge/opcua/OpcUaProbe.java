@@ -107,6 +107,19 @@ public class OpcUaProbe implements SmartLifecycle {
                     "OPC UA probe running endpoint={} tags={}",
                     properties.getEndpointUrl(),
                     tags.size());
+        } catch (OpcUaUnavailableException e) {
+            String operatorMessage =
+                    "OPC UA server is not live at "
+                            + properties.getEndpointUrl()
+                            + ". Start it; the edge will connect automatically.";
+            phase.set(Phase.BACKOFF);
+            diagnostics.markReconnectFailed(operatorMessage);
+            log.warn(
+                    "{}; scheduling reconnect in {}ms: {}",
+                    operatorMessage,
+                    backoffMs.get(),
+                    e.getMessage());
+            scheduleReconnect(backoffMs.get());
         } catch (RuntimeException e) {
             phase.set(Phase.STOPPED);
             diagnostics.markStopped();

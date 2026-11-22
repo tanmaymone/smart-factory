@@ -57,10 +57,10 @@ final class OpcUaClientFactory {
         try {
             client.connectAsync().get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
-            throw new OpcUaProbeException(
+            throw new OpcUaUnavailableException(
                     "OPC UA connect timed out after " + timeoutMs + "ms for " + configuredUrl, e);
         } catch (ExecutionException e) {
-            throw new OpcUaProbeException(
+            throw new OpcUaUnavailableException(
                     "OPC UA connect failed for " + configuredUrl + ": " + rootMessage(e), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -80,10 +80,10 @@ final class OpcUaClientFactory {
                                     })
                             .get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
-            throw new OpcUaProbeException(
+            throw new OpcUaUnavailableException(
                     "OPC UA discovery timed out after " + timeoutMs + "ms for " + configuredUrl, e);
         } catch (ExecutionException e) {
-            throw new OpcUaProbeException(
+            throw new OpcUaUnavailableException(
                     "OPC UA discovery failed for " + configuredUrl + ": " + rootMessage(e), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

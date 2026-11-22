@@ -72,7 +72,7 @@ Pass: **7** tags total, **4** for `INDORE`, **3** for `INDORE` + `LINE-01` on a 
 
 #### Step 4 — Plant edge + Edge UI
 
-Prosys must already be running (edge fails fast on bad connect / Bad NodeIds).
+Prefer Prosys running before edge start. If the server is down, the edge stays up in BACKOFF, shows a start-Prosys banner on `:8081`, and connects once the port accepts. Bad NodeIds / Bad initial reads still fail startup.
 
 ```powershell
 cd plant-edge-service

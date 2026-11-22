@@ -83,6 +83,14 @@ class EdgeDiagnosticsControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("Plant Edge Diagnostics")))
                 .andExpect(content().string(Matchers.containsString("Last observed")))
-                .andExpect(content().string(Matchers.containsString("/api/edge/status")));
+                .andExpect(content().string(Matchers.containsString("/api/edge/status")))
+                .andExpect(content().string(Matchers.containsString("/smart-factory-logo.png")));
+
+        mockMvc.perform(get("/smart-factory-logo.png"))
+                .andExpect(status().isOk())
+                .andExpect(result ->
+                        org.assertj.core.api.Assertions.assertThat(
+                                        result.getResponse().getContentType())
+                                .startsWith("image/"));
     }
 }
