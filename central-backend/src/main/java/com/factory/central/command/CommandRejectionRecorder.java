@@ -21,15 +21,25 @@ public class CommandRejectionRecorder {
     public void rejectAndThrow(
             TagMapping tag,
             CommandRequest request,
+            String requestedBy,
             String previousValue,
             Instant now,
             CommandStatus status,
             CommandException ex) {
         rejectAndThrow(
-                tag.getSiteId(), tag.getLineId(), tag.getTagCode(), request, previousValue, now, status, ex);
+                tag.getSiteId(),
+                tag.getLineId(),
+                tag.getTagCode(),
+                request,
+                requestedBy,
+                previousValue,
+                now,
+                status,
+                ex);
     }
 
-    public void rejectUnknownTagAndThrow(CommandRequest request, Instant now, CommandException ex) {
+    public void rejectUnknownTagAndThrow(
+            CommandRequest request, String requestedBy, Instant now, CommandException ex) {
         String tagCode = request.tagCode() == null || request.tagCode().isBlank()
                 ? String.valueOf(request.tagId())
                 : request.tagCode().trim();
@@ -38,6 +48,7 @@ public class CommandRejectionRecorder {
                 request.lineId(),
                 tagCode,
                 request,
+                requestedBy,
                 null,
                 now,
                 CommandStatus.REJECTED_VALIDATION,
@@ -49,6 +60,7 @@ public class CommandRejectionRecorder {
             String lineId,
             String tagCode,
             CommandRequest request,
+            String requestedBy,
             String previousValue,
             Instant now,
             CommandStatus status,
@@ -61,7 +73,7 @@ public class CommandRejectionRecorder {
                 tagCode,
                 stringifyTarget(request),
                 previousValue,
-                request.requestedBy().trim(),
+                requestedBy,
                 request.reason().trim(),
                 status,
                 ex.getMessage(),

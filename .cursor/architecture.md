@@ -256,7 +256,7 @@ smart-factory-platform/
 
    * `previous_value` (VARCHAR, nullable)
 
-   * `requested_by` (VARCHAR — user ID/email)
+   * `requested_by` (VARCHAR — server-derived actor id from `ActorContext`; body `requestedBy` ignored)
 
    * `reason` (TEXT — mandatory operator note for digital logbook)
 
@@ -270,11 +270,13 @@ smart-factory-platform/
 
    * `acked_at` (TIMESTAMPTZ, nullable)
 
-   * Flyway `V4__command_audit_logs.sql`; identity columns insert-only (trigger); ACK/publish-failure transition only via `UPDATE ... WHERE status='VALIDATED_DISPATCHED'` → `ACKED`|`FAILED_EDGE`; SSE `COMMAND_UPDATE` only when update count=1. Edge ACK status `REJECTED` stored as `FAILED_EDGE`. MQTT publish failure → same conditional `FAILED_EDGE` + `rejection_reason` `MQTT publish failed: …` + SSE when transitioned. REST: `POST /api/commands` (202 / 422 / 503); `GET /api/commands/audit`; no update/delete endpoints. RBAC deferred (`requestedBy` caller-supplied).
+   * Flyway `V4__command_audit_logs.sql`; identity columns insert-only (trigger); ACK/publish-failure transition only via `UPDATE ... WHERE status='VALIDATED_DISPATCHED'` → `ACKED`|`FAILED_EDGE`; SSE `COMMAND_UPDATE` only when update count=1. Edge ACK status `REJECTED` stored as `FAILED_EDGE`. MQTT publish failure → same conditional `FAILED_EDGE` + `rejection_reason` `MQTT publish failed: …` + SSE when transitioned. REST: `POST /api/commands` (202 / 422 / 503; gated `OPERATOR`|`SUPERVISOR`); `GET /api/commands/audit` open; no update/delete endpoints. MQTT `issuedBy` = same actor id as `requested_by`.
+
+5. **`actors`** (Flyway `V6__actors.sql`): `actor_id` PK, `display_name`, `role` (`VIEWER`|`OPERATOR`|`SUPERVISOR` only). Bootstrap admin is env-only (`APP_BOOTSTRAP_TOKEN` / `X-Setup-Token` → `ONBOARDING_ADMIN`), not a row. REST: `GET`/`POST /api/access/actors` (admin only; create 201 / update 200; `ROLE_NOT_ASSIGNABLE` 422). `AccessInterceptor` + `AccessPolicy` single enforcement point; path normalized via `ServletRequestPathUtils`; bad setup token or unknown `X-Actor-Id` → 401 on open and gated routes; open `Anonymous`/`Resolved` do not set holder; unmatched paths skip resolver (`POST /api/onboarding/probe` unmatched until M3.3 registers it). `NEXT_PUBLIC_BOOTSTRAP_TOKEN` in browser bundle until M4.2.
 
 ### 6.2 Time-Series Hypertable (TimescaleDB)
 
-5. **`telemetry_history`** (Flyway `V3__telemetry_history.sql`; Timescale hypertable on `time`):
+6. **`telemetry_history`** (Flyway `V3__telemetry_history.sql`; Timescale hypertable on `time`):
 
    * `time` (TIMESTAMPTZ NOT NULL — partitioning column)
 
@@ -469,9 +471,9 @@ Follow this exact sequence when scaffolding and implementing features:
 
 * **Step M3.1 — Site, Line & Bulk Tag Registry APIs (done):** Remove the dependency on `RegistrySeedRunner` and manual code changes to add a new plant, production line, or equipment tag list (`RegistrySeedRunner` remains the INDORE/PUNE demo baseline only). Idempotent `POST`/`GET`/`PUT` for Sites and Lines on natural keys (`siteCode`, `lineCode`; retries never create duplicates). `POST /api/registry/tags/batch` JSON/CSV upsert with row-level validation (`minValue < maxValue`, `deadband >= 0`, valid protocol, non-empty `externalAddress`). Lifecycle `DRAFT` / `VERIFIED` / `ACTIVE` on sites, lines, and tags so partial config does not alarm or write; live only when all three are `ACTIVE` (`RegistryLivenessService` gate for ingest, `TAG_NOT_ACTIVE` commands, latest/alarms/SSE; site/line demotion `evictScope`; batch may set `ACTIVE` but never seeds latest-cache). `ActorContext` is a pass-through on mutating registry methods in M3.1 — bootstrap admin + RBAC in M3.2, Spring Security in M4.2. Test: create site + line via API; import a multi-tag reactor batch with one invalid row (clear row-level errors); re-import stays idempotent.
 
-* **Step M3.2 — Actor Identity Abstraction & Bootstrap Admin Access:** `ActorContext` (user id, display name, role `VIEWER` | `OPERATOR` | `SUPERVISOR` | `ONBOARDING_ADMIN`) on registry and command services; `requestedBy` from actor context, not trusted raw input. First-run bootstrap admin (env config or setup token) so the onboarding engineer can provision the first site and users. Boundaries: `ONBOARDING_ADMIN` manages sites/lines/tags; `OPERATOR` / `SUPERVISOR` execute governed writes; `VIEWER` read-only. Full Spring Security / RBAC stays M4.2. Test: `VIEWER` or `OPERATOR` cannot mutate `/registry`; an `OPERATOR` write stores the server-derived identity in `command_audit_logs`.
+* **Step M3.2 — Actor Identity Abstraction & Bootstrap Admin Access (done):** `ActorContext` + `AccessInterceptor`/`AccessPolicy`/`BootstrapActorResolver`; `APP_BOOTSTRAP_TOKEN`/`X-Setup-Token` → `ONBOARDING_ADMIN`; `actors` directory + `X-Actor-Id`; registry mutations admin-only; commands `OPERATOR`|`SUPERVISOR`; `requested_by`/`issuedBy` from actor id (accept + reject); tests `SF-ACCESS`. M4.2 replaces `ActorResolver` only. M3.3 must register `POST /api/onboarding/probe` in `AccessRoute`.
 
-* **Step M3.3 — Edge OPC UA Connection & Tag Read Probe:** `POST /api/onboarding/probe` (backend/edge) tests TCP/OPC UA reachability for an endpoint URL + security mode and one-shot reads candidate node IDs. Per-tag diagnostics: reachability, sample value, data type, OPC UA quality `GOOD` / `BAD` / `UNREACHABLE`. Test: Prosys with two valid node IDs and one missing node; live values on valid nodes; diagnostic error on the bad node; edge service stays up.
+* **Step M3.3 — Edge OPC UA Connection & Tag Read Probe:** `POST /api/onboarding/probe` (backend/edge) tests TCP/OPC UA reachability for an endpoint URL + security mode and one-shot reads candidate node IDs. Per-tag diagnostics: reachability, sample value, data type, OPC UA quality `GOOD` / `BAD` / `UNREACHABLE`. Register the route in `AccessRoute` in the same change (today unmatched). Test: Prosys with two valid node IDs and one missing node; live values on valid nodes; diagnostic error on the bad node; edge service stays up.
 
 * **Step M3.4 — Single-Source Registry-to-Edge Config Sync:** Versioned active manifest `GET /api/edge/{siteId}/config` (active lines, tag addresses, deadbands, writable flags). `plant-edge-service` fetches/syncs its active tag list on startup and on config-version updates; last-known-good JSON/SQLite snapshot on disk so a WAN-outage restart still loads mappings. Test: add a tag in `/registry`; edge polls and publishes it with no YAML edit and no container restart; restart edge with the backend stopped and confirm snapshot fallback.
 
@@ -483,7 +485,7 @@ Follow this exact sequence when scaffolding and implementing features:
 
 * **Step M4.1 — Broker Auth, ACLs & TLS Transport:** Mosquitto `allow_anonymous false`; per-site/per-client ACLs so an edge node publishes only its own telemetry/ACKs and subscribes only to its site’s commands. Credentials + TLS (`ssl://` / `tls://`) on the broker, Paho clients, and the reverse proxy (Caddy) in front of web/API. Check: unauthorized client or cross-site topic rejected; authenticated edge publishes telemetry and receives only its own site’s commands.
 
-* **Step M4.2 — Full Authentication & RBAC Enforcement:** Spring Security on the backend; Next.js login/session or token auth. Enforce `VIEWER`, `OPERATOR`, `SUPERVISOR`, `ONBOARDING_ADMIN`. `requestedBy` strictly from the authenticated user (`WriteCommandModal` cannot spoof names); `command_audit_logs` stay append-only and trigger-protected. Check: unauthenticated or `VIEWER` requests to write/registry endpoints blocked; valid commands record the real operator identity in the audit log.
+* **Step M4.2 — Full Authentication & RBAC Enforcement:** Spring Security on the backend; replace `BootstrapActorResolver` only — keep `AccessInterceptor`/`AccessPolicy`. Next.js login/session or token auth. Enforce `VIEWER`, `OPERATOR`, `SUPERVISOR`, `ONBOARDING_ADMIN`. Remove `NEXT_PUBLIC_BOOTSTRAP_TOKEN` / `X-Setup-Token` client path. Check: unauthenticated or `VIEWER` requests to write/registry endpoints blocked; valid commands record the real operator identity in the audit log.
 
 * **Step M4.3 — OPC UA Security Policies (Sign / SignAndEncrypt) & Trust Store:** Beyond None/anonymous: `Sign` / `SignAndEncrypt`, user/certificate credentials, trusted/rejected certificate store. Check: connect, subscribe, and write against a security-enabled OPC UA endpoint; untrusted certificates handled predictably.
 

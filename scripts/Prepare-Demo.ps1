@@ -33,15 +33,27 @@ function Write-WarnLine([string] $Message) {
     Write-Host $Message -ForegroundColor Yellow
 }
 
+function Get-BootstrapToken {
+    $token = [string]$env:APP_BOOTSTRAP_TOKEN
+    if ([string]::IsNullOrWhiteSpace($token)) {
+        throw "Set APP_BOOTSTRAP_TOKEN before running registry mutations (Prepare-Demo.ps1)."
+    }
+    return $token
+}
+
 function Invoke-CurlJson {
     param(
         [Parameter(Mandatory)] [string] $Method,
         [Parameter(Mandatory)] [string] $Url,
-        [string] $Body
+        [string] $Body,
+        [switch] $RequireBootstrap
     )
     $tmp = $null
     try {
         $curlArgs = @("-sS", "-X", $Method, $Url, "-H", "Content-Type: application/json")
+        if ($RequireBootstrap) {
+            $curlArgs += @("-H", ("X-Setup-Token: {0}" -f (Get-BootstrapToken)))
+        }
         if ($PSBoundParameters.ContainsKey("Body") -and $null -ne $Body) {
             # File body avoids PowerShell quote-stripping when invoking curl.exe -d.
             $tmp = [System.IO.Path]::GetTempFileName()
@@ -175,7 +187,7 @@ if ($EnableInterlock -or $ClearInterlock) {
     $sp = Get-Tag -Site $SiteId -Line $LineId -Code $SetpointTagCode
     $key = if ($EnableInterlock) { "INLET_VALVE_OPEN" } else { "" }
     $putBody = ConvertTo-RegistryPutBody -Tag $sp -InterlockRuleKey $key -SetInterlock
-    $updated = Invoke-CurlJson -Method PUT -Url "$BackendOrigin/api/registry/tags/$($sp.id)" -Body $putBody
+    $updated = Invoke-CurlJson -Method PUT -Url "$BackendOrigin/api/registry/tags/$($sp.id)" -Body $putBody -RequireBootstrap
     $shown = if ($null -eq $updated.interlockRuleKey -or $updated.interlockRuleKey -eq "") { "<empty>" } else { $updated.interlockRuleKey }
     Write-Info ("interlockRuleKey now: {0}" -f $shown)
     if ($EnableInterlock) {
@@ -219,7 +231,7 @@ if (-not [string]::IsNullOrWhiteSpace($NodeId)) {
     Write-Info "=== Registry externalAddress for $TagCode -> $NodeId ==="
     $tag = Get-Tag -Site $SiteId -Line $LineId -Code $TagCode
     $putBody = ConvertTo-RegistryPutBody -Tag $tag -ExternalAddress $NodeId -SetExternalAddress
-    $updated = Invoke-CurlJson -Method PUT -Url "$BackendOrigin/api/registry/tags/$($tag.id)" -Body $putBody
+    $updated = Invoke-CurlJson -Method PUT -Url "$BackendOrigin/api/registry/tags/$($tag.id)" -Body $putBody -RequireBootstrap
     Write-Info ("Registry externalAddress now: {0}" -f $updated.externalAddress)
     Write-WarnLine "LOCAL EDGE YAML ONLY (do not commit unless SeedAlignmentTest is updated to the same node-id):"
     Write-WarnLine "  In plant-edge-service/src/main/resources/application.yml, set the matching tag node-id to:"

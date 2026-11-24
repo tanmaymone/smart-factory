@@ -2,6 +2,7 @@ package com.factory.central.command;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.factory.central.access.ActorContext;
 import com.factory.central.cache.LatestTagCache;
 import com.factory.central.cache.LatestTagState;
 import com.factory.central.mqtt.MqttPublishException;
@@ -61,14 +62,15 @@ public class CommandService {
         this.clock = clock;
     }
 
-    public CommandAcceptedResponse submit(CommandRequest request) {
+    public CommandAcceptedResponse submit(ActorContext actor, CommandRequest request) {
         Instant now = clock.instant();
+        String requestedBy = actor.actorId();
         TagMapping tag;
         try {
             tag = tagResolver.resolve(request);
         } catch (CommandException ex) {
             if (CommandErrorCode.TAG_NOT_FOUND.equals(ex.getCode())) {
-                rejectionRecorder.rejectUnknownTagAndThrow(request, now, ex);
+                rejectionRecorder.rejectUnknownTagAndThrow(request, requestedBy, now, ex);
             }
             throw ex;
         }
@@ -106,7 +108,7 @@ public class CommandService {
         } catch (CommandException ex) {
             if (ex.getStatus() == HttpStatus.UNPROCESSABLE_ENTITY) {
                 rejectionRecorder.rejectAndThrow(
-                        tag, request, previousValue, now, CommandStatus.REJECTED_VALIDATION, ex);
+                        tag, request, requestedBy, previousValue, now, CommandStatus.REJECTED_VALIDATION, ex);
             }
             throw ex;
         }
@@ -121,7 +123,7 @@ public class CommandService {
                     null,
                     List.of(new CommandErrorResponse.FieldErrorDetail("interlock", interlock.get())));
             rejectionRecorder.rejectAndThrow(
-                    tag, request, previousValue, now, CommandStatus.REJECTED_INTERLOCK, ex);
+                    tag, request, requestedBy, previousValue, now, CommandStatus.REJECTED_INTERLOCK, ex);
         }
 
         UUID commandId = UUID.randomUUID();
@@ -132,7 +134,7 @@ public class CommandService {
                 tag.getTagCode(),
                 target.stored(),
                 previousValue,
-                request.requestedBy().trim(),
+                requestedBy,
                 request.reason().trim(),
                 CommandStatus.VALIDATED_DISPATCHED,
                 null,
@@ -148,7 +150,7 @@ public class CommandService {
                 tag.getExternalAddress(),
                 tag.getDataType().name(),
                 target.value(),
-                request.requestedBy().trim(),
+                requestedBy,
                 now);
         try {
             mqttPublisher.publish(topic, objectMapper.writeValueAsString(payload));

@@ -44,6 +44,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-smart_factory}
       MQTT_BROKER_URL: tcp://mosquitto:1883
       OPC_ENDPOINT_URL: ${OPC_ENDPOINT_URL:-opc.tcp://localhost:53530/OPCUA/SimulationServer}
+      APP_BOOTSTRAP_TOKEN: ${APP_BOOTSTRAP_TOKEN:-}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m -XX:MaxMetaspaceSize=128m"
     ports:
       - "8080:8080"
@@ -65,8 +66,10 @@ services:
       context: ./web-frontend
       args:
         BACKEND_ORIGIN: http://central-backend:8080
+        NEXT_PUBLIC_BOOTSTRAP_TOKEN: ${APP_BOOTSTRAP_TOKEN:-}
     environment:
       BACKEND_ORIGIN: http://central-backend:8080
+      NEXT_PUBLIC_BOOTSTRAP_TOKEN: ${APP_BOOTSTRAP_TOKEN:-}
     ports:
       - "3000:3000"
     depends_on:

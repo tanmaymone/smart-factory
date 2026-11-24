@@ -1,6 +1,6 @@
 package com.factory.central.registry;
 
-import com.factory.central.access.ActorContext;
+import com.factory.central.access.ActorContextHolder;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
@@ -37,7 +37,7 @@ public class LineRegistryController {
     @PostMapping
     public ResponseEntity<LineResponse> createLine(@Valid @RequestBody LineRequest request) {
         LineRegistryService.LineCreateResult result =
-                lineRegistryService.create(ActorContext.anonymous(), request);
+                lineRegistryService.create(ActorContextHolder.current(), request);
         if (result.created()) {
             return ResponseEntity.created(URI.create(
                             "/api/registry/lines/"
@@ -54,6 +54,6 @@ public class LineRegistryController {
             @PathVariable String siteCode,
             @PathVariable String lineCode,
             @Valid @RequestBody LineUpdateRequest request) {
-        return lineRegistryService.update(ActorContext.anonymous(), siteCode, lineCode, request);
+        return lineRegistryService.update(ActorContextHolder.current(), siteCode, lineCode, request);
     }
 }

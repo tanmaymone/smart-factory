@@ -1,6 +1,6 @@
 package com.factory.central.registry;
 
-import com.factory.central.access.ActorContext;
+import com.factory.central.access.ActorContextHolder;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
@@ -36,7 +36,7 @@ public class SiteRegistryController {
     @PostMapping
     public ResponseEntity<SiteResponse> createSite(@Valid @RequestBody SiteRequest request) {
         SiteRegistryService.SiteCreateResult result =
-                siteRegistryService.create(ActorContext.anonymous(), request);
+                siteRegistryService.create(ActorContextHolder.current(), request);
         if (result.created()) {
             return ResponseEntity.created(URI.create("/api/registry/sites/" + result.body().siteCode()))
                     .body(result.body());
@@ -47,6 +47,6 @@ public class SiteRegistryController {
     @PutMapping("/{siteCode}")
     public SiteResponse updateSite(
             @PathVariable String siteCode, @Valid @RequestBody SiteUpdateRequest request) {
-        return siteRegistryService.update(ActorContext.anonymous(), siteCode, request);
+        return siteRegistryService.update(ActorContextHolder.current(), siteCode, request);
     }
 }

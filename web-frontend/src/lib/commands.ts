@@ -59,10 +59,18 @@ export async function submitCommand(
   | { ok: true; response: CommandAcceptedResponse }
   | { ok: false; status: number; error: CommandErrorResponse }
 > {
+  const body = buildCommandBody(request);
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  const actorId = body.requestedBy.trim();
+  if (actorId) {
+    headers["X-Actor-Id"] = actorId;
+  }
   const response = await fetch("/api/commands", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(buildCommandBody(request)),
+    headers,
+    body: JSON.stringify(body),
     signal,
     cache: "no-store",
   });

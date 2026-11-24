@@ -20,7 +20,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.UUID;
+import com.factory.central.access.BootstrapActorResolver;
 import org.eclipse.paho.client.mqttv3.IMqttClient;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +33,8 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -67,10 +71,20 @@ class RegistryApiIT {
         registry.add(
                 "app.mqtt.broker-url",
                 () -> "tcp://" + mosquitto.getHost() + ":" + mosquitto.getMappedPort(1883));
+        registry.add("app.bootstrap.token", () -> "it-bootstrap-token");
     }
 
     @Autowired
+    private WebApplicationContext webApplicationContext;
+
     private MockMvc mockMvc;
+
+    @BeforeEach
+    void setUpMockMvc() {
+        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
+                .defaultRequest(get("/").header(BootstrapActorResolver.SETUP_TOKEN_HEADER, "it-bootstrap-token"))
+                .build();
+    }
 
     @Autowired
     private ObjectMapper objectMapper;

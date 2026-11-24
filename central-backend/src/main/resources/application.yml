@@ -30,6 +30,11 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
 
 app:
+  bootstrap:
+    # Empty fails closed. Set APP_BOOTSTRAP_TOKEN for first-run registry and actor provisioning.
+    token: ${APP_BOOTSTRAP_TOKEN:}
+    actor-id: ${APP_BOOTSTRAP_ACTOR_ID:bootstrap-admin}
+    display-name: ${APP_BOOTSTRAP_DISPLAY_NAME:Bootstrap Admin}
   registry:
     # Override when Prosys advertises a hostname (e.g. opc.tcp://Tanmay:53530/OPCUA/SimulationServer)
     opc-endpoint-url: ${OPC_ENDPOINT_URL:opc.tcp://localhost:53530/OPCUA/SimulationServer}

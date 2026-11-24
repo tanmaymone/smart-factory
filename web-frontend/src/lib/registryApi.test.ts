@@ -13,7 +13,10 @@ describe("SF-M1.3 deleteRegistryTag", () => {
     await expect(deleteRegistryTag("tag-1")).resolves.toEqual({ ok: true });
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/registry/tags/tag-1",
-      expect.objectContaining({ method: "DELETE" }),
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.any(Object),
+      }),
     );
   });
 

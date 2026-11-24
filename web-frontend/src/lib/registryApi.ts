@@ -4,6 +4,32 @@ import type {
   TagMappingRequest,
 } from "@/lib/types";
 
+const MISSING_BOOTSTRAP_MESSAGE =
+  "Set NEXT_PUBLIC_BOOTSTRAP_TOKEN and APP_BOOTSTRAP_TOKEN to the same value before changing the registry.";
+
+function bootstrapToken(): string | null {
+  const raw = process.env.NEXT_PUBLIC_BOOTSTRAP_TOKEN;
+  if (raw == null) {
+    return null;
+  }
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === "undefined") {
+    return null;
+  }
+  return trimmed;
+}
+
+function registryMutationHeaders(): HeadersInit {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  const token = bootstrapToken();
+  if (token) {
+    headers["X-Setup-Token"] = token;
+  }
+  return headers;
+}
+
 export function parseRegistryError(payload: unknown): RegistryErrorResponse {
   if (payload == null || typeof payload !== "object") {
     return { code: "UNKNOWN", message: "Registry request failed", fieldErrors: [] };
@@ -23,6 +49,21 @@ export function parseRegistryError(payload: unknown): RegistryErrorResponse {
         )
       : [],
   };
+}
+
+function mutationError(
+  status: number,
+  payload: unknown,
+): RegistryErrorResponse {
+  const parsed = parseRegistryError(payload);
+  if (status === 401 && bootstrapToken() == null) {
+    return {
+      ...parsed,
+      code: typeof parsed.code === "string" ? parsed.code : "UNAUTHENTICATED",
+      message: MISSING_BOOTSTRAP_MESSAGE,
+    };
+  }
+  return parsed;
 }
 
 export type RegistryListQuery = {
@@ -68,7 +109,7 @@ export async function createRegistryTag(
 > {
   const response = await fetch("/api/registry/tags", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: registryMutationHeaders(),
     body: JSON.stringify(body),
     signal,
     cache: "no-store",
@@ -80,7 +121,7 @@ export async function createRegistryTag(
   return {
     ok: false,
     status: response.status,
-    error: parseRegistryError(payload),
+    error: mutationError(response.status, payload),
   };
 }
 
@@ -94,7 +135,7 @@ export async function updateRegistryTag(
 > {
   const response = await fetch(`/api/registry/tags/${id}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: registryMutationHeaders(),
     body: JSON.stringify(body),
     signal,
     cache: "no-store",
@@ -106,7 +147,7 @@ export async function updateRegistryTag(
   return {
     ok: false,
     status: response.status,
-    error: parseRegistryError(payload),
+    error: mutationError(response.status, payload),
   };
 }
 
@@ -116,8 +157,14 @@ export async function deleteRegistryTag(
 ): Promise<
   { ok: true } | { ok: false; status: number; error: RegistryErrorResponse }
 > {
+  const headers: Record<string, string> = {};
+  const token = bootstrapToken();
+  if (token) {
+    headers["X-Setup-Token"] = token;
+  }
   const response = await fetch(`/api/registry/tags/${id}`, {
     method: "DELETE",
+    headers,
     signal,
     cache: "no-store",
   });
@@ -128,6 +175,6 @@ export async function deleteRegistryTag(
   return {
     ok: false,
     status: response.status,
-    error: parseRegistryError(payload),
+    error: mutationError(response.status, payload),
   };
 }

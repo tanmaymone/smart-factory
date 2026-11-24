@@ -1,6 +1,6 @@
 package com.factory.central.registry;
 
-import com.factory.central.access.ActorContext;
+import com.factory.central.access.ActorContextHolder;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -27,14 +27,14 @@ public class TagBatchController {
     @PostMapping(path = "/batch", consumes = MediaType.APPLICATION_JSON_VALUE)
     public TagBatchResponse importJson(@RequestBody JsonNode body) {
         List<TagBatchRowInput> rows = parseJsonRows(body);
-        return tagBatchService.importBatch(ActorContext.anonymous(), rows);
+        return tagBatchService.importBatch(ActorContextHolder.current(), rows);
     }
 
     @PostMapping(
             path = "/batch",
             consumes = {"text/csv", "text/plain"})
     public TagBatchResponse importCsv(@RequestBody(required = false) String body) {
-        return tagBatchService.importCsv(ActorContext.anonymous(), body == null ? "" : body);
+        return tagBatchService.importCsv(ActorContextHolder.current(), body == null ? "" : body);
     }
 
     private List<TagBatchRowInput> parseJsonRows(JsonNode body) {

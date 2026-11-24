@@ -10,6 +10,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.factory.central.access.ActorContext;
+import com.factory.central.access.ActorRole;
 import com.factory.central.cache.LatestTagCache;
 import com.factory.central.mqtt.MqttPublishException;
 import com.factory.central.mqtt.MqttPublisher;
@@ -134,7 +136,7 @@ class CommandPublishFailureTest {
                 .thenReturn(1);
 
         CommandRequest request = request();
-        assertThatThrownBy(() -> service.submit(request))
+        assertThatThrownBy(() -> service.submit(operator(), request))
                 .isInstanceOf(CommandException.class)
                 .satisfies(ex -> {
                     CommandException ce = (CommandException) ex;
@@ -168,9 +170,13 @@ class CommandPublishFailureTest {
                         null,
                         now));
 
-        CommandAcceptedResponse response = service.submit(request());
+        CommandAcceptedResponse response = service.submit(operator(), request());
         assertThat(response.status()).isEqualTo(CommandStatus.ACKED.asString());
         verify(streamHub, never()).publishCommand(any());
+    }
+
+    private static ActorContext operator() {
+        return new ActorContext("operator@factory.com", "Operator", ActorRole.OPERATOR);
     }
 
     private CommandRequest request() throws Exception {
@@ -180,7 +186,7 @@ class CommandPublishFailureTest {
                 null,
                 "VALVE_101_POS",
                 new ObjectMapper().readTree("50.0"),
-                "operator@factory.com",
+                "spoofed@factory.com",
                 "set valve");
     }
 }

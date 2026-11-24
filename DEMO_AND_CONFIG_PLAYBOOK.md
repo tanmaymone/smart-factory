@@ -33,6 +33,9 @@ Helper script (health checks, interlock toggle, valve ingest, NodeId PUT):
 ```powershell
 cd c:\Users\tanma\Coding\smart-factory
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+# For registry writes and Prepare-Demo.ps1 tag PUTs, set the same bootstrap token for backend and Next:
+# $env:APP_BOOTSTRAP_TOKEN = "dev-bootstrap-token"
+# $env:NEXT_PUBLIC_BOOTSTRAP_TOKEN = "dev-bootstrap-token"
 docker compose up -d
 docker compose ps
 docker compose exec timescaledb psql -U smartfactory -d smart_factory -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'timescaledb';"
@@ -161,10 +164,17 @@ Expect: HTTP 422 `TARGET_OUT_OF_RANGE`, audit `REJECTED_VALIDATION`, modal error
 API equivalent (PowerShell — write JSON to a file so quoting stays intact):
 
 ```powershell
+# Provision once (bootstrap admin). APP_BOOTSTRAP_TOKEN must match the backend.
+$tok = $env:APP_BOOTSTRAP_TOKEN
+curl.exe -s -X POST "http://localhost:8080/api/access/actors" -H "Content-Type: application/json" -H "X-Setup-Token: $tok" -d "{\"actorId\":\"demo@factory.com\",\"displayName\":\"Demo Operator\",\"role\":\"OPERATOR\"}"
+curl.exe -s -X POST "http://localhost:8080/api/access/actors" -H "Content-Type: application/json" -H "X-Setup-Token: $tok" -d "{\"actorId\":\"supervisor@factory.com\",\"displayName\":\"Demo Supervisor\",\"role\":\"SUPERVISOR\"}"
+
 $oor = Join-Path $env:TEMP 'sf-oor.json'
-[System.IO.File]::WriteAllText($oor, '{"siteId":"INDORE","lineId":"LINE-01","tagCode":"VALVE_101_POS","targetValue":150.0,"requestedBy":"demo@factory.com","reason":"out-of-range dry run"}')
-curl.exe -s -w "`nHTTP %{http_code}`n" -X POST "http://localhost:8080/api/commands" -H "Content-Type: application/json" --data-binary "@$oor"
+[System.IO.File]::WriteAllText($oor, '{"siteId":"INDORE","lineId":"LINE-01","tagCode":"VALVE_101_POS","targetValue":150.0,"requestedBy":"spoofed@factory.com","reason":"out-of-range dry run"}')
+curl.exe -s -w "`nHTTP %{http_code}`n" -X POST "http://localhost:8080/api/commands" -H "Content-Type: application/json" -H "X-Actor-Id: demo@factory.com" --data-binary "@$oor"
 ```
+
+A wrong `X-Setup-Token` returns 401 even when `X-Actor-Id` is valid. Either provisioned id can submit a governed write; neither can `POST` registry.
 
 When the edge is connected to Prosys, live telemetry can overwrite an ingested `VALVE_101_POS` within a second. For interlock demos, run `-ValvePosition` and the setpoint write immediately afterward, or rely on the live sim value if it is already below / above 5.
 

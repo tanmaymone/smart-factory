@@ -12,5 +12,5 @@ public record CommandRequest(
         UUID tagId,
         @Size(max = 128) String tagCode,
         @NotNull JsonNode targetValue,
-        @NotBlank @Size(max = 255) String requestedBy,
+        @Size(max = 255) String requestedBy,
         @NotBlank String reason) {}

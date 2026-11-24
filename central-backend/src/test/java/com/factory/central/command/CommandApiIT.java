@@ -70,6 +70,7 @@ class CommandApiIT {
                 "app.mqtt.broker-url",
                 () -> "tcp://" + mosquitto.getHost() + ":" + mosquitto.getMappedPort(1883));
         registry.add("app.mqtt.client-id", () -> "central-backend-cmd-it-" + UUID.randomUUID());
+        registry.add("app.bootstrap.token", () -> "it-bootstrap-token");
     }
 
     @Autowired
@@ -84,6 +85,15 @@ class CommandApiIT {
     @Autowired
     private LatestTagCache latestTagCache;
 
+    @Autowired
+    private com.factory.central.access.ActorRepository actorRepository;
+
+    @org.junit.jupiter.api.BeforeEach
+    void seedOperator() {
+        actorRepository.save(new com.factory.central.access.ActorEntity(
+                "operator@factory.com", "Operator", com.factory.central.access.ActorRole.OPERATOR));
+    }
+
     @Test
     void acceptedCommandPublishesMqttAndAcksToAudit() throws Exception {
         CopyOnWriteArrayList<String> published = new CopyOnWriteArrayList<>();
@@ -96,6 +106,7 @@ class CommandApiIT {
                             published.add(new String(message.getPayload(), StandardCharsets.UTF_8)));
 
             MvcResult result = mockMvc.perform(post("/api/commands")
+                            .header("X-Actor-Id", "operator@factory.com")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(
                                     """
@@ -169,6 +180,7 @@ class CommandApiIT {
                     (topic, message) -> seen.set(new String(message.getPayload(), StandardCharsets.UTF_8)));
 
             mockMvc.perform(post("/api/commands")
+                            .header("X-Actor-Id", "operator@factory.com")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(
                                     """
@@ -186,6 +198,7 @@ class CommandApiIT {
                     .andExpect(jsonPath("$.commandId").exists());
 
             mockMvc.perform(post("/api/commands")
+                            .header("X-Actor-Id", "operator@factory.com")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(
                                     """
@@ -236,6 +249,7 @@ class CommandApiIT {
         String tagId = sp.get("id").asText();
 
         mockMvc.perform(put("/api/registry/tags/" + tagId)
+                        .header("X-Setup-Token", "it-bootstrap-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(registryPutBody(sp, InletValveOpenInterlockRule.KEY))))
                 .andExpect(status().isOk());
@@ -251,6 +265,7 @@ class CommandApiIT {
                 null));
 
         mockMvc.perform(post("/api/commands")
+                        .header("X-Actor-Id", "operator@factory.com")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -302,6 +317,7 @@ class CommandApiIT {
     void whitespaceTagCodeIsBadRequestWithoutAudit() throws Exception {
         long before = auditLogRepository.count();
         mockMvc.perform(post("/api/commands")
+                        .header("X-Actor-Id", "operator@factory.com")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """

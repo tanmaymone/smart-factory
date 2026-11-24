@@ -1,5 +1,6 @@
 package com.factory.central.command;
 
+import com.factory.central.access.ActorContextHolder;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -23,7 +24,7 @@ public class CommandController {
 
     @PostMapping
     public ResponseEntity<CommandAcceptedResponse> submit(@Valid @RequestBody CommandRequest request) {
-        CommandAcceptedResponse response = commandService.submit(request);
+        CommandAcceptedResponse response = commandService.submit(ActorContextHolder.current(), request);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }
 
