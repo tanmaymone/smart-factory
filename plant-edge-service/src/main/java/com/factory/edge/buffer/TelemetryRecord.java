@@ -16,7 +16,8 @@ public record TelemetryRecord(
         String quality,
         String statusName,
         Instant sourceTimestamp,
-        Instant serverTimestamp) {
+        Instant serverTimestamp,
+        Boolean nodeWritable) {
 
     public static final String TYPE_NULL = "NULL";
     public static final String TYPE_INT32 = "INT32";
@@ -38,7 +39,8 @@ public record TelemetryRecord(
                 reading.quality(),
                 reading.statusName(),
                 reading.sourceTimestamp(),
-                reading.serverTimestamp());
+                reading.serverTimestamp(),
+                reading.nodeWritable());
     }
 
     public static String typeOf(Object value) {

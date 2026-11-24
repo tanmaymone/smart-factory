@@ -88,13 +88,17 @@ public final class ProbeTestServer implements AutoCloseable {
         server.startup().get(10, TimeUnit.SECONDS);
 
         endpointUrl = "opc.tcp://127.0.0.1:" + port + "/probe";
-        counterNodeIdText = namespace.counterNodeId().toParseableString();
-        doubleNodeIdText = namespace.doubleNodeId().toParseableString();
-        readOnlyNodeIdText = namespace.readOnlyNodeId().toParseableString();
+        counterNodeIdText = nsu(namespace.counterNodeId());
+        doubleNodeIdText = nsu(namespace.doubleNodeId());
+        readOnlyNodeIdText = nsu(namespace.readOnlyNodeId());
     }
 
     public String endpointUrl() {
         return endpointUrl;
+    }
+
+    public String namespaceUri() {
+        return NAMESPACE_URI;
     }
 
     public String counterNodeIdText() {
@@ -107,6 +111,14 @@ public final class ProbeTestServer implements AutoCloseable {
 
     public String readOnlyNodeIdText() {
         return readOnlyNodeIdText;
+    }
+
+    private static String nsu(NodeId nodeId) {
+        Object id = nodeId.getIdentifier();
+        if (id instanceof Number n) {
+            return "nsu=" + NAMESPACE_URI + ";i=" + n.intValue();
+        }
+        return "nsu=" + NAMESPACE_URI + ";s=" + id;
     }
 
     public void setCounter(int value) {

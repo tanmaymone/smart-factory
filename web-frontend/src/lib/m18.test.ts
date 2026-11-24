@@ -72,12 +72,21 @@ describe("SF-M18 row merge writable bounds", () => {
   it("carries writable, tagId, dataType, and bounds onto TelemetryRow", () => {
     const rows = mergeRows(
       [tag({ id: "tag-9", minValue: 5, maxValue: 90, writable: true })],
-      { VALVE_101_POS: sample({ tagCode: "VALVE_101_POS", value: 0 }) },
+      {
+        VALVE_101_POS: sample({
+          tagCode: "VALVE_101_POS",
+          value: 0,
+          observedDataType: "INT",
+          nodeWritable: false,
+        }),
+      },
     );
     const row = rows[0];
     expect(row.tagId).toBe("tag-9");
     expect(row.writable).toBe(true);
     expect(row.dataType).toBe("FLOAT");
+    expect(row.observedDataType).toBe("INT");
+    expect(row.nodeWritable).toBe(false);
     expect(row.minValue).toBe(5);
     expect(row.maxValue).toBe(90);
   });

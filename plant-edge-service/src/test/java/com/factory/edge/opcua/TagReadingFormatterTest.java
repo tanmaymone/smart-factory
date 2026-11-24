@@ -16,7 +16,7 @@ class TagReadingFormatterTest {
 
     @Test
     void formatsReadAndChangeInStableFieldOrder() {
-        OpcUaProperties.TagConfig tag = tag("INDORE", "LINE-01", "VALVE_101_POS", "ns=3;i=1001");
+        OpcUaProperties.TagConfig tag = tag("INDORE", "LINE-01", "VALVE_101_POS", "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001");
         Instant source = Instant.parse("2026-11-20T16:18:01.200Z");
         Instant server = Instant.parse("2026-11-20T16:18:01.205Z");
         DataValue value =
@@ -30,7 +30,7 @@ class TagReadingFormatterTest {
         assertThat(read)
                 .isEqualTo(
                         "OPC event=READ siteId=INDORE lineId=LINE-01 tagCode=VALVE_101_POS"
-                                + " nodeId=ns=3;i=1001 value=1 quality=GOOD"
+                                + " nodeId=nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001 value=1 quality=GOOD"
                                 + " sourceTimestamp=2026-11-20T16:18:01.200Z"
                                 + " serverTimestamp=2026-11-20T16:18:01.205Z");
 
@@ -41,7 +41,7 @@ class TagReadingFormatterTest {
 
     @Test
     void formatsNullValueAndBadStatusName() {
-        OpcUaProperties.TagConfig tag = tag("PUNE", "LINE-01", "REACTOR_TEMP_C", "ns=3;i=1002");
+        OpcUaProperties.TagConfig tag = tag("PUNE", "LINE-01", "REACTOR_TEMP_C", "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1002");
         DataValue value =
                 new DataValue(
                         Variant.NULL_VALUE,

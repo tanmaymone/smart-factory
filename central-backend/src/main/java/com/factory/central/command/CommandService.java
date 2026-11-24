@@ -3,6 +3,7 @@ package com.factory.central.command;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.factory.central.cache.LatestTagCache;
+import com.factory.central.cache.LatestTagState;
 import com.factory.central.mqtt.MqttPublishException;
 import com.factory.central.mqtt.MqttPublisher;
 import com.factory.central.registry.TagMapping;
@@ -67,8 +68,9 @@ public class CommandService {
             }
             throw ex;
         }
-        String previousValue = latestTagCache
-                .get(tag.getSiteId(), tag.getLineId(), tag.getTagCode())
+        Optional<LatestTagState> latest =
+                latestTagCache.get(tag.getSiteId(), tag.getLineId(), tag.getTagCode());
+        String previousValue = latest
                 .map(state -> state.value() == null ? null : String.valueOf(state.value()))
                 .orElse(null);
 
@@ -84,6 +86,10 @@ public class CommandService {
                         List.of(new CommandErrorResponse.FieldErrorDetail("tagCode", "tag is not writable")));
             }
             CommandTargetValue.assertWithinBounds(tag, target.value());
+            NodeWriteGuard.check(
+                    tag.getDataType(),
+                    latest.map(LatestTagState::observedDataType).orElse(null),
+                    latest.map(LatestTagState::nodeWritable).orElse(null));
         } catch (CommandException ex) {
             if (ex.getStatus() == HttpStatus.UNPROCESSABLE_ENTITY) {
                 rejectionRecorder.rejectAndThrow(

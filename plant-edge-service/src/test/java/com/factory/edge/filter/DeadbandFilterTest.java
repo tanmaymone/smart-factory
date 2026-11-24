@@ -139,7 +139,7 @@ class DeadbandFilterTest {
         config.setSiteId(siteId);
         config.setLineId(lineId);
         config.setTagCode(tagCode);
-        config.setNodeId("ns=3;i=1001");
+        config.setNodeId("nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001");
         config.setDeadband(deadband);
         return config;
     }
@@ -158,11 +158,12 @@ class DeadbandFilterTest {
                 "INDORE",
                 "LINE-01",
                 "PUMP_ON",
-                "ns=3;i=2001",
+                "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=2001",
                 value,
                 "GOOD",
                 Instant.parse("2026-11-20T12:00:00Z"),
                 Instant.parse("2026-11-20T12:00:00Z"),
+                null,
                 null);
     }
 
@@ -180,11 +181,12 @@ class DeadbandFilterTest {
                 siteId,
                 "LINE-01",
                 "VALVE_101_POS",
-                "ns=3;i=1001",
+                "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                 value,
                 quality,
                 Instant.parse("2026-11-20T12:00:00Z"),
                 Instant.parse("2026-11-20T12:00:00Z"),
-                status);
+                status,
+                null);
     }
 }

@@ -14,6 +14,7 @@ public class OpcUaProperties {
     private int monitoredItemQueueSize = 10;
     private long reconnectInitialMs = 1000;
     private long reconnectMaxMs = 30000;
+    private SecurityConfig security = new SecurityConfig();
     private List<TagConfig> tags = new ArrayList<>();
 
     @PostConstruct
@@ -25,6 +26,7 @@ public class OpcUaProperties {
             throw new IllegalStateException(
                     "app.opcua.reconnect-max-ms must be >= reconnect-initial-ms");
         }
+        security.validate();
         for (TagConfig tag : tags) {
             if (tag.getDeadband() < 0.0) {
                 throw new IllegalStateException(
@@ -88,12 +90,88 @@ public class OpcUaProperties {
         this.reconnectMaxMs = reconnectMaxMs;
     }
 
+    public SecurityConfig getSecurity() {
+        return security;
+    }
+
+    public void setSecurity(SecurityConfig security) {
+        this.security = security == null ? new SecurityConfig() : security;
+    }
+
     public List<TagConfig> getTags() {
         return tags;
     }
 
     public void setTags(List<TagConfig> tags) {
         this.tags = tags == null ? new ArrayList<>() : tags;
+    }
+
+    public static class SecurityConfig {
+        public static final String POLICY_NONE = "None";
+        public static final String POLICY_BASIC256SHA256 = "Basic256Sha256";
+        public static final String IDENTITY_ANONYMOUS = "anonymous";
+
+        private String policy = POLICY_NONE;
+        private String identity = IDENTITY_ANONYMOUS;
+        private String pkiDir = "";
+
+        void validate() {
+            String p = policy == null ? "" : policy.trim();
+            String id = identity == null ? "" : identity.trim();
+            if (POLICY_NONE.equalsIgnoreCase(p)) {
+                if (!IDENTITY_ANONYMOUS.equalsIgnoreCase(id)) {
+                    throw new IllegalStateException(
+                            "app.opcua.security.identity must be anonymous when policy is None");
+                }
+                return;
+            }
+            if (POLICY_BASIC256SHA256.equalsIgnoreCase(p)) {
+                if (!IDENTITY_ANONYMOUS.equalsIgnoreCase(id)) {
+                    throw new IllegalStateException(
+                            "app.opcua.security.identity must be anonymous in this release"
+                                    + " (username tokens are out of scope)");
+                }
+                return;
+            }
+            throw new IllegalStateException(
+                    "app.opcua.security.policy must be None or Basic256Sha256 but was " + policy);
+        }
+
+        public boolean isNone() {
+            return POLICY_NONE.equalsIgnoreCase(policy == null ? "" : policy.trim());
+        }
+
+        public boolean isBasic256Sha256() {
+            return POLICY_BASIC256SHA256.equalsIgnoreCase(policy == null ? "" : policy.trim());
+        }
+
+        public boolean isAnonymous() {
+            return IDENTITY_ANONYMOUS.equalsIgnoreCase(identity == null ? "" : identity.trim());
+        }
+
+        public String getPolicy() {
+            return policy;
+        }
+
+        public void setPolicy(String policy) {
+            this.policy = policy;
+        }
+
+        public String getIdentity() {
+            return identity;
+        }
+
+        public void setIdentity(String identity) {
+            this.identity = identity;
+        }
+
+        public String getPkiDir() {
+            return pkiDir;
+        }
+
+        public void setPkiDir(String pkiDir) {
+            this.pkiDir = pkiDir;
+        }
     }
 
     public static class TagConfig {

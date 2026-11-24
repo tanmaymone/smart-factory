@@ -34,6 +34,8 @@ export type LatestTagState = {
   alarmFrozen: boolean;
   alarmValue: unknown;
   alarmTimestamp: string | null;
+  observedDataType?: string | null;
+  nodeWritable?: boolean | null;
 };
 
 export type TagMapping = {
@@ -105,6 +107,8 @@ export type TelemetryRow = {
   alarmFrozen: boolean;
   alarmValue: unknown;
   alarmTimestamp: string | null;
+  observedDataType: string | null;
+  nodeWritable: boolean | null;
   hasSample: boolean;
 };
 

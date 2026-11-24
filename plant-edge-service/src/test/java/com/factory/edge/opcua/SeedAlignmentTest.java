@@ -32,13 +32,15 @@ class SeedAlignmentTest {
     void yamlTagsMatchRegistrySeedRunnerExactly() {
         List<OpcUaProperties.TagConfig> tags = properties.getTags();
         assertThat(tags).hasSize(7);
-        assertThat(tuple(tags.get(0))).isEqualTo("INDORE|LINE-01|VALVE_101_POS|ns=3;i=1001|0.5");
-        assertThat(tuple(tags.get(1))).isEqualTo("INDORE|LINE-01|REACTOR_TEMP_C|ns=3;i=1002|0.2");
-        assertThat(tuple(tags.get(2))).isEqualTo("INDORE|LINE-01|REACTOR_TEMP_SP|ns=3;i=1003|0.1");
-        assertThat(tuple(tags.get(3))).isEqualTo("INDORE|LINE-02|VALVE_201_POS|ns=3;i=1004|0.5");
-        assertThat(tuple(tags.get(4))).isEqualTo("PUNE|LINE-01|VALVE_101_POS|ns=3;i=1001|0.5");
-        assertThat(tuple(tags.get(5))).isEqualTo("PUNE|LINE-01|REACTOR_TEMP_C|ns=3;i=1002|0.2");
-        assertThat(tuple(tags.get(6))).isEqualTo("PUNE|LINE-01|REACTOR_TEMP_SP|ns=3;i=1003|0.1");
+        String nsu1007 = "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007";
+        String nsu1002 = "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1002";
+        assertThat(tuple(tags.get(0))).isEqualTo("INDORE|LINE-01|VALVE_101_POS|" + nsu1007 + "|0.5");
+        assertThat(tuple(tags.get(1))).isEqualTo("INDORE|LINE-01|REACTOR_TEMP_C|" + nsu1002 + "|0.2");
+        assertThat(tuple(tags.get(2))).isEqualTo("INDORE|LINE-01|REACTOR_TEMP_SP|" + nsu1007 + "|0.1");
+        assertThat(tuple(tags.get(3))).isEqualTo("INDORE|LINE-02|VALVE_201_POS|" + nsu1007 + "|0.5");
+        assertThat(tuple(tags.get(4))).isEqualTo("PUNE|LINE-01|VALVE_101_POS|" + nsu1007 + "|0.5");
+        assertThat(tuple(tags.get(5))).isEqualTo("PUNE|LINE-01|REACTOR_TEMP_C|" + nsu1002 + "|0.2");
+        assertThat(tuple(tags.get(6))).isEqualTo("PUNE|LINE-01|REACTOR_TEMP_SP|" + nsu1007 + "|0.1");
     }
 
     private static String tuple(OpcUaProperties.TagConfig tag) {

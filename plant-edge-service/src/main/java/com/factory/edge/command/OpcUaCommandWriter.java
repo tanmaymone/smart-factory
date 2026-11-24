@@ -2,9 +2,9 @@ package com.factory.edge.command;
 
 import com.factory.edge.command.CommandValueCoercer.CoerceFail;
 import com.factory.edge.command.CommandValueCoercer.CoerceOk;
-import com.factory.edge.opcua.NodeIdParser;
 import com.factory.edge.opcua.OpcUaProbeException;
 import com.factory.edge.opcua.OpcUaSession;
+import com.factory.edge.opcua.QualityGate;
 import com.factory.edge.opcua.TagReading;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Instant;
@@ -50,11 +50,18 @@ public class OpcUaCommandWriter implements CommandWriter {
         }
 
         try {
-            NodeId nodeId = NodeIdParser.parse(nodeIdText);
+            NodeId nodeId = session.resolve(nodeIdText);
             DataValue typeAttr = session.readAttribute(nodeId, AttributeId.DataType);
-            if (bad(typeAttr.getStatusCode())) {
+            if (!QualityGate.requireGood(typeAttr)) {
                 return rejectStatus(
-                        commandId, siteId, lineId, tagCode, nodeIdText, target, typeAttr.getStatusCode(), executedAt);
+                        commandId,
+                        siteId,
+                        lineId,
+                        tagCode,
+                        nodeIdText,
+                        target,
+                        typeAttr == null ? null : typeAttr.getStatusCode(),
+                        executedAt);
             }
             Object coerced =
                     CommandValueCoercer.coerce(dataType, targetValue, extractNodeId(typeAttr));
@@ -64,13 +71,13 @@ public class OpcUaCommandWriter implements CommandWriter {
             }
 
             StatusCode writeStatus = session.writeValue(nodeId, ((CoerceOk) coerced).variant());
-            if (bad(writeStatus)) {
+            if (!QualityGate.requireGood(writeStatus)) {
                 return rejectStatus(
                         commandId, siteId, lineId, tagCode, nodeIdText, target, writeStatus, executedAt);
             }
 
             DataValue readback = session.readValue(nodeId);
-            if (bad(readback.getStatusCode())) {
+            if (!QualityGate.requireGood(readback)) {
                 return rejectStatus(
                         commandId,
                         siteId,
@@ -78,7 +85,7 @@ public class OpcUaCommandWriter implements CommandWriter {
                         tagCode,
                         nodeIdText,
                         target,
-                        readback.getStatusCode(),
+                        readback == null ? null : readback.getStatusCode(),
                         executedAt);
             }
             Object observed =
@@ -131,10 +138,6 @@ public class OpcUaCommandWriter implements CommandWriter {
             return node.asText();
         }
         return node.toString();
-    }
-
-    private static boolean bad(StatusCode status) {
-        return status == null || status.isBad();
     }
 
     private static boolean isTransient(StatusCode status) {

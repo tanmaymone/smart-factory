@@ -45,7 +45,11 @@ public final class CommandValueCoercer {
             return new CoerceFail("FLOAT targetValue must be a finite number");
         }
         if (NodeIds.Float.equals(nodeDataType)) {
-            return new CoerceOk(new Variant((float) d));
+            float f = (float) d;
+            if (!Float.isFinite(f)) {
+                return new CoerceFail("FLOAT targetValue overflows Float");
+            }
+            return new CoerceOk(new Variant(f));
         }
         if (NodeIds.Double.equals(nodeDataType)) {
             return new CoerceOk(new Variant(d));

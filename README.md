@@ -40,7 +40,7 @@ mosquitto_pub -h localhost -p 1883 -q 1 -t "site/INDORE/line/LINE-01/telemetry" 
 Publish a sample command payload (QoS 1):
 
 ```bash
-mosquitto_pub -h localhost -p 1883 -q 1 -t "site/INDORE/line/LINE-01/commands" -m "{\"commandId\":\"c4a760a8-dbcf-4e14-9f39-645a8e937f12\",\"siteId\":\"INDORE\",\"lineId\":\"LINE-01\",\"tagCode\":\"VALVE_101_POS\",\"protocol\":\"OPC_UA\",\"externalAddress\":\"ns=3;i=1001\",\"dataType\":\"FLOAT\",\"targetValue\":50.0,\"issuedBy\":\"operator@factory.com\",\"issuedAt\":\"2026-11-19T12:05:00.000Z\"}"
+mosquitto_pub -h localhost -p 1883 -q 1 -t "site/INDORE/line/LINE-01/commands" -m "{\"commandId\":\"c4a760a8-dbcf-4e14-9f39-645a8e937f12\",\"siteId\":\"INDORE\",\"lineId\":\"LINE-01\",\"tagCode\":\"VALVE_101_POS\",\"protocol\":\"OPC_UA\",\"externalAddress\":\"nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007\",\"dataType\":\"FLOAT\",\"targetValue\":50.0,\"issuedBy\":\"operator@factory.com\",\"issuedAt\":\"2026-11-19T12:05:00.000Z\"}"
 ```
 
 Subscribers should print the published messages. Use [Eclipse Mosquitto clients](https://mosquitto.org/download/) (`mosquitto_sub` / `mosquitto_pub`) on the host, or run them via `docker compose exec mosquitto ...` if clients are not installed locally.

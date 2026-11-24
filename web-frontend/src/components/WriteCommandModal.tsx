@@ -26,6 +26,7 @@ import {
   resolveTargetValue,
   type TargetDraft,
 } from "@/lib/targetValue";
+import { writeBlock } from "@/lib/writeNodeGuard";
 import type {
   CommandErrorResponse,
   CommandUpdateEvent,
@@ -120,7 +121,8 @@ export function WriteCommandModal({
     return changed ? liveRow : null;
   }, [snapshot, liveRow]);
 
-  const ready = canSubmitCommand({ draft, requestedBy, reason, confirmed });
+  const blockReason = writeBlock(liveRow ?? row);
+  const ready = canSubmitCommand({ draft, requestedBy, reason, confirmed }) && !blockReason;
 
   const onSubmit = async () => {
     if (!row?.tagId || !ready || phase === "submitting") {
@@ -209,6 +211,7 @@ export function WriteCommandModal({
             commandId={commandId}
             status={status}
             error={error}
+            blockReason={blockReason}
           />
         </div>
 

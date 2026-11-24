@@ -74,7 +74,8 @@ public class RegistrySeedRunner implements CommandLineRunner {
                                     seed.warningLow(),
                                     seed.warningHigh(),
                                     seed.criticalLow(),
-                                    seed.criticalHigh())) {
+                                    seed.criticalHigh(),
+                                    seed.externalAddress())) {
                                 tagMappingRepository.save(existing);
                             }
                         },
@@ -83,13 +84,48 @@ public class RegistrySeedRunner implements CommandLineRunner {
 
     private static List<TagSeed> sampleTags() {
         return List.of(
-                TagSeed.valve("INDORE", "LINE-01", "VALVE_101_POS", "Inlet valve position", "ns=3;i=1001"),
-                TagSeed.temp("INDORE", "LINE-01", "REACTOR_TEMP_C", "Reactor temperature", "ns=3;i=1002"),
-                TagSeed.setpoint("INDORE", "LINE-01", "REACTOR_TEMP_SP", "Reactor temperature setpoint", "ns=3;i=1003"),
-                TagSeed.valve("INDORE", "LINE-02", "VALVE_201_POS", "Packaging valve position", "ns=3;i=1004"),
-                TagSeed.valve("PUNE", "LINE-01", "VALVE_101_POS", "Inlet valve position", "ns=3;i=1001"),
-                TagSeed.temp("PUNE", "LINE-01", "REACTOR_TEMP_C", "Reactor temperature", "ns=3;i=1002"),
-                TagSeed.setpoint("PUNE", "LINE-01", "REACTOR_TEMP_SP", "Reactor temperature setpoint", "ns=3;i=1003"));
+                TagSeed.valve(
+                        "INDORE",
+                        "LINE-01",
+                        "VALVE_101_POS",
+                        "Inlet valve position",
+                        "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007"),
+                TagSeed.temp(
+                        "INDORE",
+                        "LINE-01",
+                        "REACTOR_TEMP_C",
+                        "Reactor temperature",
+                        "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1002"),
+                TagSeed.setpoint(
+                        "INDORE",
+                        "LINE-01",
+                        "REACTOR_TEMP_SP",
+                        "Reactor temperature setpoint",
+                        "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007"),
+                TagSeed.valve(
+                        "INDORE",
+                        "LINE-02",
+                        "VALVE_201_POS",
+                        "Packaging valve position",
+                        "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007"),
+                TagSeed.valve(
+                        "PUNE",
+                        "LINE-01",
+                        "VALVE_101_POS",
+                        "Inlet valve position",
+                        "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007"),
+                TagSeed.temp(
+                        "PUNE",
+                        "LINE-01",
+                        "REACTOR_TEMP_C",
+                        "Reactor temperature",
+                        "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1002"),
+                TagSeed.setpoint(
+                        "PUNE",
+                        "LINE-01",
+                        "REACTOR_TEMP_SP",
+                        "Reactor temperature setpoint",
+                        "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007"));
     }
 
     private record TagSeed(

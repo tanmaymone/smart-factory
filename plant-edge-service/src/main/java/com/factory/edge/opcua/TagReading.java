@@ -17,15 +17,22 @@ public record TagReading(
         String quality,
         Instant sourceTimestamp,
         Instant serverTimestamp,
-        String statusName) {
+        String statusName,
+        Boolean nodeWritable) {
 
     public static final String EVENT_READ = "READ";
     public static final String EVENT_CHANGE = "CHANGE";
 
     public static TagReading from(
+            String event, OpcUaProperties.TagConfig tag, DataValue dataValue) {
+        return from(event, tag, dataValue, null);
+    }
+
+    public static TagReading from(
             String event,
             OpcUaProperties.TagConfig tag,
-            DataValue dataValue) {
+            DataValue dataValue,
+            Boolean nodeWritable) {
         StatusCode status = dataValue.getStatusCode();
         if (status == null) {
             status = StatusCode.BAD;
@@ -42,7 +49,8 @@ public record TagReading(
                 qualityOf(status),
                 toInstant(dataValue.getSourceTime()),
                 toInstant(dataValue.getServerTime()),
-                status.isGood() ? null : symbolicName(status));
+                status.isGood() ? null : symbolicName(status),
+                nodeWritable);
     }
 
     static String qualityOf(StatusCode status) {

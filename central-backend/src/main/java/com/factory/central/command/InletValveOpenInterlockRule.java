@@ -34,7 +34,7 @@ public class InletValveOpenInterlockRule implements InterlockRule {
             return Optional.of(PREREQUISITE_TAG + " timestamp is missing");
         }
         String quality = state.quality();
-        if (quality == null || !"GOOD".equals(quality)) {
+        if (!QualityGate.requireGood(quality)) {
             return Optional.of(PREREQUISITE_TAG + " quality is not GOOD (quality=" + quality + ")");
         }
         Object value = state.value();

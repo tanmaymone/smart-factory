@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 public final class TelemetryPayloadParser {
@@ -68,7 +69,19 @@ public final class TelemetryPayloadParser {
                 node.get("value"),
                 textOrNull(node.get("quality")),
                 textOrNull(node.get("sourceTimestamp")),
-                textOrNull(node.get("dataType")));
+                textOrNull(node.get("dataType")),
+                booleanOrNull(node.get("nodeWritable")));
+    }
+
+    static String observedDataType(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "FLOAT", "INT", "BOOLEAN", "STRING" -> normalized;
+            default -> null;
+        };
     }
 
     private static Instant parseOptionalTimestamp(JsonNode node, String field) {
@@ -114,6 +127,13 @@ public final class TelemetryPayloadParser {
         return serverNow;
     }
 
+    private static Boolean booleanOrNull(JsonNode node) {
+        if (node == null || node.isNull() || !node.isBoolean()) {
+            return null;
+        }
+        return node.asBoolean();
+    }
+
     private static String textOrNull(JsonNode node) {
         if (node == null || node.isNull()) {
             return null;
@@ -134,7 +154,8 @@ public final class TelemetryPayloadParser {
             JsonNode value,
             String quality,
             String sourceTimestamp,
-            String dataType) {}
+            String dataType,
+            Boolean nodeWritable) {}
 
     public static final class PayloadParseException extends RuntimeException {
         private final String code;

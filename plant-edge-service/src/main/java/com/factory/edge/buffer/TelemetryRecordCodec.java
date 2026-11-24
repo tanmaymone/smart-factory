@@ -29,6 +29,9 @@ final class TelemetryRecordCodec {
             }
             writeInstant(node, "sourceTimestamp", record.sourceTimestamp());
             writeInstant(node, "serverTimestamp", record.serverTimestamp());
+            if (record.nodeWritable() != null) {
+                node.put("nodeWritable", record.nodeWritable());
+            }
             writeValue(node, record.valueType(), record.value());
             return mapper.writeValueAsString(node);
         } catch (Exception e) {
@@ -50,7 +53,8 @@ final class TelemetryRecordCodec {
                     text(node, "quality"),
                     nullText(node, "statusName"),
                     readInstant(node, "sourceTimestamp"),
-                    readInstant(node, "serverTimestamp"));
+                    readInstant(node, "serverTimestamp"),
+                    readWritable(node));
         } catch (Exception e) {
             throw new IllegalStateException("Failed to decode TelemetryRecord", e);
         }
@@ -110,5 +114,13 @@ final class TelemetryRecordCodec {
 
     private static String nullText(JsonNode node, String field) {
         return text(node, field);
+    }
+
+    private static Boolean readWritable(JsonNode node) {
+        JsonNode value = node.get("nodeWritable");
+        if (value == null || value.isNull() || !value.isBoolean()) {
+            return null;
+        }
+        return value.asBoolean();
     }
 }

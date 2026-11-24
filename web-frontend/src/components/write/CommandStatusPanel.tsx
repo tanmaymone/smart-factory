@@ -31,14 +31,27 @@ export function CommandStatusPanel({
   commandId,
   status,
   error,
+  blockReason,
 }: {
   phase: "idle" | "submitting" | "accepted" | "rejected";
   commandId: string | null;
   status: string | null;
   error: CommandErrorResponse | null;
+  blockReason?: { code: string; message: string } | null;
 }) {
   if (phase === "idle") {
-    return null;
+    if (!blockReason) {
+      return null;
+    }
+    return (
+      <div className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm">
+        <p className="font-medium text-rose-300">
+          <span className="mono font-mono tabular-nums">{blockReason.code}</span>
+          {" · "}
+          {blockReason.message}
+        </p>
+      </div>
+    );
   }
 
   return (

@@ -71,7 +71,7 @@ class CommandTargetValueTest {
                 "valve",
                 Protocol.OPC_UA,
                 "opc.tcp://localhost",
-                "ns=3;i=1001",
+                "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                 TagDataType.FLOAT,
                 "%",
                 true,

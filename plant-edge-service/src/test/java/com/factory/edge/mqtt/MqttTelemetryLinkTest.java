@@ -89,7 +89,7 @@ class MqttTelemetryLinkTest {
                 assertThat(root.get("timestamp").asText()).endsWith("Z");
                 JsonNode reading = root.get("readings").get(0);
                 assertThat(reading.get("tagCode").asText()).isEqualTo("VALVE_101_POS");
-                assertThat(reading.get("nodeId").asText()).isEqualTo("ns=3;i=1001");
+                assertThat(reading.get("nodeId").asText()).isEqualTo("nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001");
                 assertThat(reading.get("value").asDouble()).isEqualTo(42.5d);
                 assertThat(reading.get("quality").asText()).isEqualTo("GOOD");
 
@@ -146,12 +146,13 @@ class MqttTelemetryLinkTest {
                 "INDORE",
                 "LINE-01",
                 "VALVE_101_POS",
-                "ns=3;i=1001",
+                "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                 value,
                 TelemetryRecord.TYPE_DOUBLE,
                 "GOOD",
                 null,
                 Instant.parse("2026-11-19T12:00:01.200Z"),
-                Instant.parse("2026-11-19T12:00:01.250Z"));
+                Instant.parse("2026-11-19T12:00:01.250Z"),
+                null);
     }
 }

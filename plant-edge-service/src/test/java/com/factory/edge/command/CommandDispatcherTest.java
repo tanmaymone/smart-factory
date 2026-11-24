@@ -42,7 +42,7 @@ class CommandDispatcherTest {
         tag.setSiteId("INDORE");
         tag.setLineId("LINE-01");
         tag.setTagCode("VALVE_101_POS");
-        tag.setNodeId("ns=3;i=1001");
+        tag.setNodeId("nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001");
         properties.setTags(List.of(tag));
 
         writer = mock(CommandWriter.class);
@@ -62,9 +62,9 @@ class CommandDispatcherTest {
         when(writer.write(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new AssertionError("should not write"));
 
-        dispatcher.handle(topic(), bytes(command("u1", "MISSING", "ns=3;i=1001", "OPC_UA")));
-        dispatcher.handle(topic(), bytes(command("u2", "VALVE_101_POS", "ns=3;i=9999", "OPC_UA")));
-        dispatcher.handle(topic(), bytes(command("u3", "VALVE_101_POS", "ns=3;i=1001", "S7")));
+        dispatcher.handle(topic(), bytes(command("u1", "MISSING", "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001", "OPC_UA")));
+        dispatcher.handle(topic(), bytes(command("u2", "VALVE_101_POS", "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=9999", "OPC_UA")));
+        dispatcher.handle(topic(), bytes(command("u3", "VALVE_101_POS", "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001", "S7")));
 
         verify(writer, never()).write(any(), any(), any(), any(), any(), any(), any(), any());
         assertThat(published).hasSize(3);
@@ -78,11 +78,11 @@ class CommandDispatcherTest {
             throws Exception {
         dispatcher.handle(
                 "site/UNKNOWN/line/LINE-01/commands",
-                bytes(command("c1", "VALVE_101_POS", "ns=3;i=1001", "OPC_UA")));
-        ObjectNode mismatch = command("c1", "VALVE_101_POS", "ns=3;i=1001", "OPC_UA");
+                bytes(command("c1", "VALVE_101_POS", "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001", "OPC_UA")));
+        ObjectNode mismatch = command("c1", "VALVE_101_POS", "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001", "OPC_UA");
         mismatch.put("siteId", "PUNE");
         dispatcher.handle(topic(), bytes(mismatch));
-        ObjectNode noId = command("c1", "VALVE_101_POS", "ns=3;i=1001", "OPC_UA");
+        ObjectNode noId = command("c1", "VALVE_101_POS", "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001", "OPC_UA");
         noId.remove("commandId");
         dispatcher.handle(topic(), bytes(noId));
 
@@ -104,7 +104,7 @@ class CommandDispatcherTest {
                                         "INDORE",
                                         "LINE-01",
                                         "VALVE_101_POS",
-                                        "ns=3;i=1001",
+                                        "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                                         50.0,
                                         "OPC UA session unavailable",
                                         NOW,
@@ -115,13 +115,13 @@ class CommandDispatcherTest {
                                     "INDORE",
                                     "LINE-01",
                                     "VALVE_101_POS",
-                                    "ns=3;i=1001",
+                                    "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                                     50.0,
                                     50.0,
                                     NOW);
                         });
 
-        byte[] payload = bytes(command("c1", "VALVE_101_POS", "ns=3;i=1001", "OPC_UA"));
+        byte[] payload = bytes(command("c1", "VALVE_101_POS", "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001", "OPC_UA"));
         dispatcher.handle(topic(), payload);
         assertThat(writes.get()).isEqualTo(1);
         assertThat(history.find("c1")).isEmpty();
@@ -143,7 +143,7 @@ class CommandDispatcherTest {
                         eq("INDORE"),
                         eq("LINE-01"),
                         eq("VALVE_101_POS"),
-                        eq("ns=3;i=1001"),
+                        eq("nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001"),
                         eq("FLOAT"),
                         any(JsonNode.class),
                         eq(NOW)))
@@ -153,12 +153,12 @@ class CommandDispatcherTest {
                                 "INDORE",
                                 "LINE-01",
                                 "VALVE_101_POS",
-                                "ns=3;i=1001",
+                                "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                                 50.0,
                                 50.0,
                                 NOW));
 
-        dispatcher.handle(topic(), bytes(command("c1", "VALVE_101_POS", "ns=3;i=1001", "OPC_UA")));
+        dispatcher.handle(topic(), bytes(command("c1", "VALVE_101_POS", "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001", "OPC_UA")));
 
         verify(writer, times(1)).write(any(), any(), any(), any(), any(), any(), any(), any());
         assertThat(published.get(0))

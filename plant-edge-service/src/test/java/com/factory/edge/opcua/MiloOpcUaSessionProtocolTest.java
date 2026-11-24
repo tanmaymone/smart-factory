@@ -10,7 +10,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-@Tag("EDGE-OPC-PROBE")
+@Tag("EDGE-NS")
 class MiloOpcUaSessionProtocolTest {
 
     @Test

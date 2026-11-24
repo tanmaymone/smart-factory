@@ -22,13 +22,14 @@ class TelemetryEnvelopeMapperTest {
                         "INDORE",
                         "LINE-01",
                         "VALVE_101_POS",
-                        "ns=3;i=1001",
+                        "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                         75.5d,
                         TelemetryRecord.TYPE_DOUBLE,
                         "GOOD",
                         null,
                         Instant.parse("2026-11-19T12:00:01.200Z"),
-                        Instant.parse("2026-11-19T12:00:01.250Z"));
+                        Instant.parse("2026-11-19T12:00:01.250Z"),
+                        null);
 
         JsonNode root = json.readTree(mapper.toJson(record));
         assertThat(root.get("siteId").asText()).isEqualTo("INDORE");
@@ -38,7 +39,7 @@ class TelemetryEnvelopeMapperTest {
 
         JsonNode reading = root.get("readings").get(0);
         assertThat(reading.get("tagCode").asText()).isEqualTo("VALVE_101_POS");
-        assertThat(reading.get("nodeId").asText()).isEqualTo("ns=3;i=1001");
+        assertThat(reading.get("nodeId").asText()).isEqualTo("nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001");
         assertThat(reading.get("value").asDouble()).isEqualTo(75.5d);
         assertThat(reading.get("dataType").asText()).isEqualTo("FLOAT");
         assertThat(reading.get("quality").asText()).isEqualTo("GOOD");
@@ -55,15 +56,36 @@ class TelemetryEnvelopeMapperTest {
                         "INDORE",
                         "LINE-01",
                         "VALVE_101_POS",
-                        "ns=3;i=1001",
+                        "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                         10.0d,
                         TelemetryRecord.TYPE_DOUBLE,
                         "GOOD",
                         null,
                         null,
-                        Instant.parse("2026-11-19T12:00:02Z"));
+                        Instant.parse("2026-11-19T12:00:02Z"),
+                        null);
         JsonNode root = json.readTree(mapper.toJson(record));
         assertThat(root.get("timestamp").asText()).isEqualTo("2026-11-19T12:00:02Z");
         assertThat(root.get("readings").get(0).has("sourceTimestamp")).isFalse();
+    }
+
+    @Test
+    void includesNodeWritableWhenKnown() throws Exception {
+        TelemetryRecord record =
+                new TelemetryRecord(
+                        "INDORE",
+                        "LINE-01",
+                        "VALVE_101_POS",
+                        "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1101",
+                        12,
+                        TelemetryRecord.TYPE_INT32,
+                        "GOOD",
+                        null,
+                        Instant.parse("2026-11-19T12:00:01Z"),
+                        Instant.parse("2026-11-19T12:00:01Z"),
+                        false);
+        JsonNode reading = json.readTree(mapper.toJson(record)).get("readings").get(0);
+        assertThat(reading.get("dataType").asText()).isEqualTo("INT");
+        assertThat(reading.get("nodeWritable").asBoolean()).isFalse();
     }
 }

@@ -45,11 +45,12 @@ class TagObservationStoreTest {
                 "INDORE",
                 "LINE-01",
                 "VALVE_101_POS",
-                "ns=3;i=1001",
+                "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                 value,
                 "GOOD",
                 Instant.parse("2026-01-15T12:00:00Z"),
                 Instant.parse("2026-01-15T12:00:00Z"),
+                null,
                 null);
     }
 }

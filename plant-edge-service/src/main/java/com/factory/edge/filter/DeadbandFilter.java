@@ -1,6 +1,7 @@
 package com.factory.edge.filter;
 
 import com.factory.edge.opcua.OpcUaProperties;
+import com.factory.edge.opcua.QualityGate;
 import com.factory.edge.opcua.TagReading;
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -232,7 +233,7 @@ public final class DeadbandFilter {
 
         static TagState fromFirst(TagReading reading) {
             Object good =
-                    "GOOD".equals(reading.quality()) && !isNonFinite(reading.value())
+                    QualityGate.requireGood(reading.quality()) && !isNonFinite(reading.value())
                             ? reading.value()
                             : null;
             return new TagState(reading.quality(), reading.statusName(), good, reading.value());
@@ -240,7 +241,7 @@ public final class DeadbandFilter {
 
         TagState afterEmit(TagReading reading) {
             Object good = lastGoodValue;
-            if ("GOOD".equals(reading.quality()) && !isNonFinite(reading.value())) {
+            if (QualityGate.requireGood(reading.quality()) && !isNonFinite(reading.value())) {
                 good = reading.value();
             }
             return new TagState(reading.quality(), reading.statusName(), good, reading.value());

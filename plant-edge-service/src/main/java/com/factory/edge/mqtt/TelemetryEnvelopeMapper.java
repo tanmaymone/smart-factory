@@ -31,7 +31,12 @@ final class TelemetryEnvelopeMapper {
             reading.put("nodeId", record.nodeId());
             writeValue(reading, record);
             reading.put("dataType", toWireDataType(record.valueType()));
-            reading.put("quality", record.quality() == null ? "GOOD" : record.quality());
+            if (record.nodeWritable() != null) {
+                reading.put("nodeWritable", record.nodeWritable());
+            }
+            reading.put(
+                    "quality",
+                    record.quality() == null || record.quality().isBlank() ? "" : record.quality());
             if (record.sourceTimestamp() != null) {
                 reading.put("sourceTimestamp", record.sourceTimestamp().toString());
             }

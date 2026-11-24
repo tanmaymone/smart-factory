@@ -2,6 +2,7 @@ package com.factory.central.ingestion;
 
 import com.factory.central.cache.AlarmDirection;
 import com.factory.central.cache.AlarmSeverity;
+import com.factory.central.command.QualityGate;
 import com.factory.central.registry.TagDataType;
 import com.factory.central.registry.TagMapping;
 import org.springframework.stereotype.Component;
@@ -37,10 +38,11 @@ public class AlarmEvaluator {
     }
 
     public static boolean isGoodQuality(String quality) {
-        return quality == null || quality.isBlank() || "GOOD".equalsIgnoreCase(quality);
+        return QualityGate.requireGood(quality);
     }
 
+    /** Non-good samples (Bad, Uncertain, blank, unknown) freeze threshold evaluation. */
     public static boolean isFrozenQuality(String quality) {
-        return "BAD".equalsIgnoreCase(quality) || "UNCERTAIN".equalsIgnoreCase(quality);
+        return !isGoodQuality(quality);
     }
 }

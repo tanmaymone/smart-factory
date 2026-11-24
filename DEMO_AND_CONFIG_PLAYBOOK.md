@@ -11,7 +11,7 @@ Helper script (health checks, interlock toggle, valve ingest, NodeId PUT):
 .\scripts\Prepare-Demo.ps1 -EnableInterlock -ValvePosition 2.0
 .\scripts\Prepare-Demo.ps1 -ValvePosition 75.5
 .\scripts\Prepare-Demo.ps1 -ClearInterlock
-.\scripts\Prepare-Demo.ps1 -NodeId "ns=3;s=Valve101Pos" -TagCode VALVE_101_POS
+.\scripts\Prepare-Demo.ps1 -NodeId "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;s=Valve101Pos" -TagCode VALVE_101_POS
 ```
 
 ---
@@ -137,13 +137,13 @@ Use the header **Site** / **Line** switcher, or the query string:
 
 Seeded bounds: valves `0..100`, setpoint `15..90`. `REACTOR_TEMP_C` is not writable. `INLET_VALVE_OPEN` is **not** seeded (`interlockRuleKey` is null until you enable it).
 
-**Shared-node warning:** The seed baseline maps INDORE and PUNE `VALVE_101_POS`, `REACTOR_TEMP_C`, and `REACTOR_TEMP_SP` onto the same Prosys nodes `ns=3;i=1001`–`1003`. Switching sites after you point `VALVE_101_POS` or `REACTOR_TEMP_SP` at a custom writable NodeId still reads and writes that **same physical node** until each site has its own NodeId in both edge YAML (`app.opcua.tags[].node-id`) and registry `externalAddress`.
+**Shared-node warning:** INDORE and PUNE `REACTOR_TEMP_C` share Prosys Random `nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1002` (read-only). Every seeded writable tag (`VALVE_101_POS`, `REACTOR_TEMP_SP`, `VALVE_201_POS` on both sites) shares Prosys Constant `nsu=…;i=1007`, the only built-in writable Double. A write to any of them changes that one value. Counter `i=1001` is Int32 and read-only. Store plant addresses as `nsu=<uri>;(i|s)=…` — never a non-zero `ns=` index. Give a tag its own NodeId in both edge YAML and registry `externalAddress` when it must be independent. The free edition restores the project from autosave, so a hand-edited nodeset does not stick.
 
 ### 1.3 How to read failures (do not confuse these)
 
 | What you see | Meaning |
 |--------------|---------|
-| Immediate modal error, HTTP **422**, audit `REJECTED_VALIDATION` or `REJECTED_INTERLOCK` | Central stopped the write. **No** MQTT command, **no** OPC UA write. |
+| Immediate modal error, HTTP **422**, audit `REJECTED_VALIDATION` or `REJECTED_INTERLOCK` | Central stopped the write. **No** MQTT command, **no** OPC UA write. `NODE_TYPE_MISMATCH` and `NODE_NOT_WRITABLE` are this row when the latest sample already shows the OPC UA type or access level will reject the write. |
 | HTTP **202**, modal `VALIDATED_DISPATCHED`, then SSE `COMMAND_UPDATE` with status **`FAILED_EDGE`** (reason such as `Bad_NotWritable` or Float/Double coerce miss) | Validation passed; the edge OPC UA write failed. Audit ends `FAILED_EDGE`. |
 | Live table quality badge **BAD** (rose) or **UNCERTAIN** (amber); Alarm banner amber **Frozen** if an alarm was already active | Quality / alarm freeze path. Latest value can still update. Not by itself a command failure. `INLET_VALVE_OPEN` rejects a setpoint when same-line `VALVE_101_POS` quality is not GOOD. |
 
@@ -192,33 +192,35 @@ Valve writes (`VALVE_101_POS` = `55`) do **not** consult `INLET_VALVE_OPEN`.
 
 ### 1.5 Valid write with live ACK
 
-Built-in Prosys Simulation Counter / Random / Waveform nodes are generators. Current Prosys forces **Read Only** on simulated signals, so seed NodeIds `ns=3;i=1001`–`1004` typically return `Bad_NotWritable`. After a valid dispatch you then see `FAILED_EDGE` — that is expected until you map a writable Double.
+Seeded writable tags use Prosys Constant `nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007` (Double, CurrentWrite set). Counter `i=1001` is Int32 and read-only. Random / waveform nodes are read-only Doubles. A FLOAT tag on either of those is rejected in the write modal and by `POST /api/commands` (`NODE_TYPE_MISMATCH` or `NODE_NOT_WRITABLE`) once a live sample has arrived. The edge coercer still refuses the write if that sample is missing.
+
+Restart the edge and the central backend together after this seed change. Reconcile moves a tag off known seed indexes (`ns=3;i=1001|1002|1003|1004|1007`) onto the seeded `nsu=` form and leaves hand-edited addresses alone (they fail at the edge if they still use a non-zero `ns=` index).
 
 #### Make a writable Double in Prosys
 
 1. Objects view → Add → **New Variable**.
 2. DataType **Double**, Value Type **Constant**, **Read Only unchecked**.
-3. Copy the NodeId from Address Space view (Expert Mode), for example `ns=3;s=Valve101Pos`.
+3. Copy the NodeId from Address Space view (Expert Mode) as an `nsu=` string, for example `nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;s=Valve101Pos`.
 4. Alternative: use a variable under **StaticData**; copy its NodeId (do not guess it).
 
 FLOAT registry tags coerce only to OPC UA **Float** or **Double**. Do not map a FLOAT tag onto an Int32 Counter node.
 
 #### Point the demo tag (both layers)
 
-Registry (script updates only `externalAddress`; seed reconcile does **not** refresh NodeIds):
+Registry (script updates only `externalAddress`. Restart reconcile moves known seed `ns=3;i=…` addresses onto the seeded `nsu=` constant, and leaves any other address alone.):
 
 ```powershell
-.\scripts\Prepare-Demo.ps1 -NodeId "ns=3;s=Valve101Pos" -TagCode VALVE_101_POS -SiteId INDORE -LineId LINE-01
+.\scripts\Prepare-Demo.ps1 -NodeId "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;s=Valve101Pos" -TagCode VALVE_101_POS -SiteId INDORE -LineId LINE-01
 ```
 
-Edge YAML — edit locally, **do not commit** (`SeedAlignmentTest` pins `ns=3;i=1001`–`1004`):
+Edge YAML — a custom NodeId is local only. Commit it only when `SeedAlignmentTest` is updated to the same id:
 
 ```yaml
 # plant-edge-service/src/main/resources/application.yml — matching tag only
 - site-id: INDORE
   line-id: LINE-01
   tag-code: VALVE_101_POS
-  node-id: ns=3;s=Valve101Pos   # local demo only
+  node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;s=Valve101Pos   # local demo only
   deadband: 0.5
 ```
 
@@ -234,10 +236,9 @@ Restart the edge after the YAML change. Remember the shared-node warning: the sa
 #### Happy-path setpoint write
 
 1. Reset interlock state: `.\scripts\Prepare-Demo.ps1 -ValvePosition 75.5` (or `-ClearInterlock`).
-2. If the setpoint NodeId is still a sim generator, map `REACTOR_TEMP_SP` the same way (writable Double + YAML + registry).
-3. Write `REACTOR_TEMP_SP` = `50`. Expect `ACKED` as above.
+2. Write `REACTOR_TEMP_SP` = `50`. Expect `ACKED`. On the stock seed this also moves `VALVE_101_POS`, because both tags are Constant `nsu=…;i=1007`.
 
-If Prosys has no writable Double yet, treat `FAILED_EDGE` / `Bad_NotWritable` after `VALIDATED_DISPATCHED` as the expected edge outcome for seed NodeIds.
+If the modal shows `NODE_NOT_WRITABLE` or `NODE_TYPE_MISMATCH`, the tag is still on a generator (or the edge and registry NodeIds disagree). Do not treat that as a successful dispatch.
 
 ---
 
@@ -253,7 +254,7 @@ Edge allow-list is YAML-only. A registry-only tag can pass central validation an
 - site-id: INDORE
   line-id: LINE-01
   tag-code: MY_NEW_TAG
-  node-id: ns=3;s=MyNewTag
+  node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;s=MyNewTag
   deadband: 0.5
 ```
 
@@ -262,7 +263,7 @@ Restart the edge.
 2. **Central registry** — Registry UI (`/registry?siteId=INDORE&lineId=LINE-01`) or:
 
 ```powershell
-curl.exe -s -X POST "http://localhost:8080/api/registry/tags" -H "Content-Type: application/json" -d "{\"siteId\":\"INDORE\",\"lineId\":\"LINE-01\",\"tagCode\":\"MY_NEW_TAG\",\"description\":\"My new tag\",\"protocol\":\"OPC_UA\",\"endpointUrl\":\"opc.tcp://localhost:53530/OPCUA/SimulationServer\",\"externalAddress\":\"ns=3;s=MyNewTag\",\"dataType\":\"FLOAT\",\"unit\":\"%\",\"writable\":true,\"minValue\":0,\"maxValue\":100,\"deadband\":0.5,\"warningLow\":null,\"warningHigh\":null,\"criticalLow\":null,\"criticalHigh\":null,\"interlockRuleKey\":null}"
+curl.exe -s -X POST "http://localhost:8080/api/registry/tags" -H "Content-Type: application/json" -d "{\"siteId\":\"INDORE\",\"lineId\":\"LINE-01\",\"tagCode\":\"MY_NEW_TAG\",\"description\":\"My new tag\",\"protocol\":\"OPC_UA\",\"endpointUrl\":\"opc.tcp://localhost:53530/OPCUA/SimulationServer\",\"externalAddress\":\"nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;s=MyNewTag\",\"dataType\":\"FLOAT\",\"unit\":\"%\",\"writable\":true,\"minValue\":0,\"maxValue\":100,\"deadband\":0.5,\"warningLow\":null,\"warningHigh\":null,\"criticalLow\":null,\"criticalHigh\":null,\"interlockRuleKey\":null}"
 ```
 
 Match `dataType` to the OPC UA node (FLOAT → Float/Double node; INT → integer node).
@@ -304,11 +305,23 @@ $env:OPC_ENDPOINT_URL = "opc.tcp://plc-host:4840"
 - Edge: `app.opcua.endpoint-url` / `OPC_UA_ENDPOINT`
 - Backend seed reconcile: `app.registry.opc-endpoint-url` / `OPC_ENDPOINT_URL` (updates existing seed tags’ `endpoint_url` on restart)
 
-2. Replace every tag’s NodeId in **edge YAML** and registry `externalAddress` with the plant NodeIds. Give INDORE and PUNE **distinct** NodeIds before cutover so a shared simulator node is not carried onto the PLC.
+2. Replace every tag’s NodeId in **edge YAML** and registry `externalAddress` with plant `nsu=<namespaceUri>;(i|s)=…` addresses (never a non-zero `ns=` index). Give INDORE and PUNE **distinct** NodeIds before cutover so a shared simulator node is not carried onto the PLC.
 
 3. Restart edge and backend. Confirm Edge UI OPC phase connected and Live console updates.
 
-4. **Security limit today:** the edge connects with **SecurityPolicy None + Anonymous** only. Sign / SignAndEncrypt and username tokens require code changes in `OpcUaClientFactory` (and trust-store wiring). Cutover stops at None + Anonymous until that exists.
+4. **Security:** `app.opcua.security.policy: None` + `identity: anonymous` is **local/dev only** (Prosys). For a secured server set `policy: Basic256Sha256` (SignAndEncrypt) and `pki-dir` / `OPC_UA_PKI_DIR` to a readable tree:
+
+   ```
+   pki-dir/
+     own/cert.der
+     own/private-key.pem
+     trusted/certs/   # server certificate(s) — must be non-empty
+     trusted/crl/
+     issuer/certs/
+     issuer/crl/
+   ```
+
+   Put the OPC UA server certificate in `trusted/certs`, and trust the edge client certificate on the server. An empty or unreadable trust dir fails startup (`IllegalStateException`) and does **not** fall back to None. Handshake rejection after PKI is present may BACKOFF like any connect failure. Username tokens are out of scope in this release.
 
 5. **Topology:** one `plant-edge-service` process = one OPC UA session for every tag in its YAML. A second plant usually means a second edge process with a distinct `EDGE_MQTT_CLIENT_ID`.
 

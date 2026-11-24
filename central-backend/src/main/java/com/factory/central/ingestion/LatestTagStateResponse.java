@@ -16,7 +16,9 @@ public record LatestTagStateResponse(
         AlarmDirection direction,
         boolean alarmFrozen,
         Object alarmValue,
-        Instant alarmTimestamp) {
+        Instant alarmTimestamp,
+        String observedDataType,
+        Boolean nodeWritable) {
 
     public static LatestTagStateResponse from(LatestTagState state) {
         return new LatestTagStateResponse(
@@ -30,6 +32,8 @@ public record LatestTagStateResponse(
                 state.direction(),
                 state.alarmFrozen(),
                 state.alarmValue(),
-                state.alarmTimestamp());
+                state.alarmTimestamp(),
+                state.observedDataType(),
+                state.nodeWritable());
     }
 }

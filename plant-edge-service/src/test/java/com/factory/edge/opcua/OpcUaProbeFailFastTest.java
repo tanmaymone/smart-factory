@@ -71,7 +71,7 @@ class OpcUaProbeFailFastTest {
         tag.setSiteId("INDORE");
         tag.setLineId("LINE-01");
         tag.setTagCode("VALVE_101_POS");
-        tag.setNodeId("ns=3;i=1001");
+        tag.setNodeId("nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001");
         properties.setTags(List.of(tag));
 
         doThrow(new OpcUaProbeException("Initial read Bad for tagCode=VALVE_101_POS status=Bad_NodeIdUnknown"))
@@ -90,7 +90,7 @@ class OpcUaProbeFailFastTest {
         tag.setSiteId("INDORE");
         tag.setLineId("LINE-01");
         tag.setTagCode("VALVE_101_POS");
-        tag.setNodeId("ns=3;i=1001");
+        tag.setNodeId("nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001");
         properties.setTags(List.of(tag));
 
         doThrow(new OpcUaProbeException("Monitored item Bad for tagCode=VALVE_101_POS status=Bad_NodeIdUnknown"))

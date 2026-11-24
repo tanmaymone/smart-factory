@@ -320,11 +320,12 @@ class StoreAndForwardQueueTest {
                             "INDORE",
                             "LINE-01",
                             "BAD_TAG",
-                            "ns=3;i=9",
+                            "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=9",
                             null,
                             TelemetryRecord.TYPE_NULL,
                             "BAD",
                             "Bad_Timeout",
+                            null,
                             null,
                             null));
 
@@ -361,13 +362,14 @@ class StoreAndForwardQueueTest {
                 "INDORE",
                 "LINE-01",
                 tagCode,
-                "ns=3;i=1001",
+                "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                 value,
                 valueType,
                 "GOOD",
                 null,
                 Instant.parse("2026-11-20T12:00:00Z"),
-                Instant.parse("2026-11-20T12:00:01Z"));
+                Instant.parse("2026-11-20T12:00:01Z"),
+                null);
     }
 
     private static class ControllableLink implements TelemetryLink {

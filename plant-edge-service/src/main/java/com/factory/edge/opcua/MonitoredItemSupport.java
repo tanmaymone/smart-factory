@@ -3,6 +3,7 @@ package com.factory.edge.opcua;
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
 import org.eclipse.milo.opcua.sdk.client.subscriptions.MonitoredItemSynchronizationException;
@@ -27,13 +28,15 @@ final class MonitoredItemSupport {
             OpcUaClient client, List<ParsedTag> tags, Consumer<TagReading> onReading)
             throws UaException {
         List<NodeId> nodeIds = tags.stream().map(ParsedTag::nodeId).toList();
+        Map<NodeId, Boolean> writable = NodeAccessProbe.readWritable(client, nodeIds);
         List<DataValue> values = client.readValues(0.0, TimestampsToReturn.Both, nodeIds);
 
         OpcUaProbeException failure = null;
         for (int i = 0; i < tags.size(); i++) {
             ParsedTag tag = tags.get(i);
             DataValue value = values.get(i);
-            TagReading reading = TagReading.from(TagReading.EVENT_READ, tag.config(), value);
+            TagReading reading =
+                    TagReading.from(TagReading.EVENT_READ, tag.config(), value, writable.get(tag.nodeId()));
             StatusCode status = value.getStatusCode();
             if (status != null && status.isBad()) {
                 log.error(TagReadingFormatter.format(reading));
@@ -70,14 +73,18 @@ final class MonitoredItemSupport {
                 new OpcUaSubscription(client, properties.getPublishingIntervalMs());
         subscription.create();
 
+        Map<NodeId, Boolean> writable =
+                NodeAccessProbe.readWritable(client, tags.stream().map(ParsedTag::nodeId).toList());
         for (ParsedTag tag : tags) {
             OpcUaMonitoredItem item = OpcUaMonitoredItem.newDataItem(tag.nodeId());
             item.setSamplingInterval(properties.getPublishingIntervalMs());
             item.setQueueSize(uint(properties.getMonitoredItemQueueSize()));
+            Boolean nodeWritable = writable.get(tag.nodeId());
             item.setDataValueListener(
                     (monitoredItem, value) ->
                             onReading.accept(
-                                    TagReading.from(TagReading.EVENT_CHANGE, tag.config(), value)));
+                                    TagReading.from(
+                                            TagReading.EVENT_CHANGE, tag.config(), value, nodeWritable)));
             subscription.addMonitoredItem(item);
         }
 

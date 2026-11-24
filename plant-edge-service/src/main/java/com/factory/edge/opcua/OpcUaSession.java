@@ -27,6 +27,12 @@ public interface OpcUaSession extends AutoCloseable {
     /** True when a live client is connected and ready for read/write. */
     boolean isAvailable();
 
+    /**
+     * Resolve a plant address ({@code nsu=} or {@code ns=0}) against the session NamespaceArray
+     * cache. Throws when the session is down or the URI is unknown.
+     */
+    NodeId resolve(String nodeIdText);
+
     DataValue readAttribute(NodeId nodeId, AttributeId attributeId);
 
     DataValue readValue(NodeId nodeId);

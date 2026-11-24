@@ -152,13 +152,13 @@ smart-factory-platform/
 
 * **Language & Framework:** Java 21 + Spring Boot (leveraging **Eclipse Milo** for OPC UA and **Apache PLC4X** for S7/Modbus TCP) *or* Go for ultra-lightweight edge footprints. *(Note: Standardizing on Java 21 + Spring Boot for both Central and Edge allows sharing DTOs, validation logic, and unified team tooling).*
 
-* **M2.1 OPC UA Probe (done):** Non-web Boot app; Milo `1.1.8`; endpoint `${OPC_UA_ENDPOINT:${OPC_ENDPOINT_URL:opc.tcp://localhost:53530/OPCUA/SimulationServer}}`; discovery+`EndpointUtil.updateUrl` host/port rewrite; SecurityPolicy None + Anonymous; 5s timeout; seven seed tags (INDORE LINE-01×3, INDORE LINE-02 VALVE_201_POS, PUNE LINE-01×3); initial READ then CHANGE subscription; log `OPC event=READ|CHANGE siteId=… lineId=… tagCode=… nodeId=… value=… quality=… sourceTimestamp=… serverTimestamp=… [status=…]`; fail-fast empty/invalid NodeId/Bad read/Bad monitored-item; unreachable server (`OpcUaUnavailableException`) soft-starts into BACKOFF reconnect (edge UI stays up). Mid-run loss reconnect is M2.2.
+* **M2.1 OPC UA Probe (done):** Non-web Boot app; Milo `1.1.8`; endpoint `${OPC_UA_ENDPOINT:${OPC_ENDPOINT_URL:opc.tcp://localhost:53530/OPCUA/SimulationServer}}`; discovery+`EndpointUtil.updateUrl` host/port rewrite; `app.opcua.security.*` selects endpoint (`None`+`anonymous` local/dev; `Basic256Sha256` SignAndEncrypt + `pki-dir` for secured servers — missing trust = `IllegalStateException` fail-fast, not BACKOFF); 5s timeout; seven seed tags use `nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=…` (INDORE LINE-01×3, INDORE LINE-02 VALVE_201_POS, PUNE LINE-01×3); `MiloOpcUaSession.start` syntax-checks addresses, connects, reads `Server_NamespaceArray`, resolves URI→index (no non-zero `ns=` in YAML/seeds); initial READ then CHANGE subscription; log `OPC event=READ|CHANGE … quality=…`; `QualityGate` for trust; fail-fast empty/invalid NodeId/Bad initial read/Bad monitored-item; unreachable server (`OpcUaUnavailableException`) soft-starts into BACKOFF. Tests `EDGE-NS` / `EDGE-QUALITY` / `EDGE-TYPE` / `EDGE-RECONNECT` / `EDGE-SEC`. Mid-run loss reconnect is M2.2.
 
-* **M2.2 Deadband + Disk Buffer (done):** `DeadbandFilter` keyed `siteId|lineId|tagCode`; per-tag `deadband` in yaml (valves 0.5, TEMP_C 0.2, TEMP_SP 0.1); same-kind numeric compare via `BigDecimal.valueOf`; bool/string COV; NaN/Inf never become lastGood; BAD repeat held; UNCERTAIN deadbands vs last uncertain emit; GOOD return uses lastGood baseline; only GOOD finite updates lastGood. `StoreAndForwardQueue` SQLite WAL (`app.buffer.path`, max 10000, drop-oldest + warn); publish outside lock; `inflightSeq`-safe eviction; `TelemetryLink` port. Mid-run OPC UA loss → generation-guarded backoff reconnect (`reconnect-initial-ms`/`max-ms`); filter+queue survive; startup unreachable server uses the same BACKOFF path (config errors still fail-fast).
+* **M2.2 Deadband + Disk Buffer (done):** `DeadbandFilter` keyed `siteId|lineId|tagCode`; per-tag `deadband` in yaml (valves 0.5, TEMP_C 0.2, TEMP_SP 0.1); same-kind numeric compare via `BigDecimal.valueOf`; bool/string COV; NaN/Inf never become lastGood; BAD repeat held; UNCERTAIN deadbands vs last uncertain emit; GOOD return uses lastGood baseline; only `QualityGate.requireGood` + finite updates lastGood. `StoreAndForwardQueue` SQLite WAL (`app.buffer.path`, max 10000, drop-oldest + warn); publish outside lock; `inflightSeq`-safe eviction; `TelemetryLink` port. Mid-run OPC UA loss → `session.close` then `start` (namespace re-resolve + subscription recreate); generation-guarded backoff (`reconnect-initial-ms`/`max-ms`); filter+queue survive; startup unreachable server uses the same BACKOFF path (config/PKI errors still fail-fast).
 
 * **M2.3 MQTT Telemetry Publisher (done):** Paho `1.2.5` `MqttTelemetryLink` → `site/{siteId}/line/{lineId}/telemetry` QoS 1; Section 7.1 envelope + reading `nodeId`; memory persistence + `cleanSession`; delete SQLite row only after sync publish; `connectComplete`/`bindRecovery` → `onLinkRecovered`. `PacedOutboundDrainer` (`edge-buffer-drain`, `drain-batch-size`/`drain-pause-ms`); fast-path claims head seq under lock (no race with worker); open logs `residualDepth`; local `EdgeLinkHealth` (`CONNECTED`|`DISCONNECTED`, `bufferedCount`, `lastPublishAt`). Broker-down at startup does not fail OPC UA. Tests `EDGE-MQTT` / `EDGE-BUFFER`.
 
-* **M2.4 Command Subscriber + OPC Write + ACK (done):** Second Paho client `${EDGE_MQTT_CLIENT_ID:plant-edge}-commands` (memory + `cleanSession=true` — no broker offline queue; re-subscribe `site/+/line/+/commands` on connect/`connectComplete`); single `edge-command` worker + capacity-32 queue; yaml allow-list resolve (`externalAddress`/`nodeId`/tagCode); `CommandWriter`/`OpcUaCommandWriter` via live `MiloOpcUaSession` write+readback; strict DataType coerce (Float `ns=0;i=10` / Double `ns=0;i=11` exact); ACK → `site/{siteId}/line/{lineId}/commands/acks` with dual aliases `appliedValue`/`observedValue` + `errorMessage`/`reason` (explicit JSON nulls); edge status `REJECTED` → central `FAILED_EDGE`; terminal ACK replay vs transient retry (`queue full` / session unavailable); `EdgeCommandHistory` cap 32. Prosys seed `ns=3;i=1001..1004` currently simulation generators (`Bad_NotWritable`; `1001` Int32, `1002–1004` Double) — live ACKED needs writable mapped nodes. Tests `EDGE-CMD`.
+* **M2.4 Command Subscriber + OPC Write + ACK (done):** Second Paho client `${EDGE_MQTT_CLIENT_ID:plant-edge}-commands` (memory + `cleanSession=true` — no broker offline queue; re-subscribe `site/+/line/+/commands` on connect/`connectComplete`); single `edge-command` worker + capacity-32 queue; yaml allow-list resolve (`externalAddress`/`nodeId`/tagCode` as `nsu=` strings); `CommandWriter`/`OpcUaCommandWriter` via live `MiloOpcUaSession.resolve` + write+readback; `QualityGate` on DataType attr / write status / readback (Uncertain ≠ ACK); `CommandValueCoercer` only Variant builder (Float→`float` finite, UInt16→`UShort` 0..65535); ACK → `site/{siteId}/line/{lineId}/commands/acks` with dual aliases `appliedValue`/`observedValue` + `errorMessage`/`reason` (explicit JSON nulls); edge status `REJECTED` → central `FAILED_EDGE`; terminal ACK replay vs transient retry (`queue full` / session unavailable); `EdgeCommandHistory` cap 32. Writable seed tags share Prosys Constant Double `nsu=…;i=1007` (Counter `i=1001` Int32 read-only, `i=1002`–`i=1006` read-only generators). `REACTOR_TEMP_C` stays Random `nsu=…;i=1002`. Telemetry may include `nodeWritable`. Latest cache stores `observedDataType` + `nodeWritable`. `POST /api/commands` rejects `NODE_TYPE_MISMATCH` / `NODE_NOT_WRITABLE` (422, `REJECTED_VALIDATION`) when those facts are already known. Tests `EDGE-CMD` / `EDGE-TYPE` / `GW-NODE`.
 
 * **Local Resilience:** SQLite WAL outbound queue buffers filtered `TelemetryRecord`s when `TelemetryLink` is down; paced FIFO drain on recover; reopen logs residual depth and replays undeleted rows.
 
@@ -210,7 +210,7 @@ smart-factory-platform/
 
    * `endpoint_url` (VARCHAR; default seed `opc.tcp://localhost:53530/OPCUA/SimulationServer`, override `OPC_ENDPOINT_URL`)
 
-   * `external_address` (VARCHAR, e.g., `ns=3;i=1001` or `DB1.DBD0`)
+   * `external_address` (VARCHAR, e.g., `nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007` or `DB1.DBD0`)
 
    * `data_type` (ENUM: `FLOAT`, `INT`, `BOOLEAN`, `STRING`)
 
@@ -308,6 +308,7 @@ All edge-to-cloud and cloud-to-edge asynchronous communication uses MQTT QoS 1.
       "tagCode": "VALVE_101_POS",
       "value": 75.5,
       "dataType": "FLOAT",
+      "nodeWritable": true,
       "quality": "GOOD",
       "sourceTimestamp": "2026-11-19T12:00:01.200Z"
     }
@@ -329,7 +330,7 @@ All edge-to-cloud and cloud-to-edge asynchronous communication uses MQTT QoS 1.
   "lineId": "LINE-01",
   "tagCode": "VALVE_101_POS",
   "protocol": "OPC_UA",
-  "externalAddress": "ns=3;i=1001",
+  "externalAddress": "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007",
   "dataType": "FLOAT",
   "targetValue": 50.0,
   "issuedBy": "operator@factory.com",
@@ -392,6 +393,8 @@ When an operator submits a setpoint/valve change in Next.js:
 
    * Verify `minValue <= targetValue <= maxValue`.
 
+   * If the latest sample already has `observedDataType` or `nodeWritable`, reject `NODE_TYPE_MISMATCH` or `NODE_NOT_WRITABLE` before MQTT. Missing facts still fall through to the edge coercer.
+
    * Evaluate pluggable `InterlockRule` / `InterlockEvaluator` (e.g., `INLET_VALVE_OPEN` requires same-line `VALVE_101_POS` GOOD finite value ≥ 5 using latest cached tag values). RBAC not enforced until an identity module exists.
 
    * If any check fails: Persist `REJECTED_VALIDATION` or `REJECTED_INTERLOCK` row in `command_audit_logs` and return HTTP `422 Unprocessable Entity` with clear details.
@@ -451,3 +454,35 @@ Follow this exact sequence when scaffolding and implementing features:
 * **Step M2.5 — Lightweight Edge Device UI (done):** Local status/diagnostics on `127.0.0.1:8081` (yaml `server.address`; container overrides `SERVER_ADDRESS=0.0.0.0` and publishes `127.0.0.1:8081` on the plant PC); `GET /api/edge/status` + static poll UI for OPC UA health, MQTT/buffer, tag deadbands + last observed (holds marked), recent commands.
 
 * **Step M2.6 — End-to-End Verification & Playbook:** Run full loop rehearsal: Next.js write command $\rightarrow$ Spring Boot validation/interlock check $\rightarrow$ MQTT $\rightarrow$ Edge Service $\rightarrow$ Prosys OPC UA Server write $\rightarrow$ ACK $\rightarrow$ Next.js UI & Digital Audit Logbook.
+
+### Milestone 3: Self-Serve Plant Onboarding, Config Sync & Operator Access
+
+* **Step M3.1 — Site, Line & Bulk Tag Registry APIs:** Drop `RegistrySeedRunner` and code edits to add a plant, line, or tag list. Idempotent `POST`/`GET`/`PUT` for Sites and Lines on natural keys (`siteCode`, `lineCode`; retries never duplicate). `POST /api/registry/tags/batch` JSON/CSV upsert; row validation (`minValue < maxValue`, `deadband >= 0`, valid protocol, non-empty `externalAddress`). Lifecycle `DRAFT` / `VERIFIED` / `ACTIVE` on sites, lines, and tags so partial tags do not alarm or write. Test: create site + line via API; import a multi-tag reactor batch with one invalid row (row-level errors); re-import stays idempotent.
+
+* **Step M3.2 — Actor Identity Abstraction & Bootstrap Admin Access:** `ActorContext` (user id, display name, role `VIEWER` | `OPERATOR` | `SUPERVISOR` | `ONBOARDING_ADMIN`) on registry and command services; `requestedBy` from actor context, not trusted raw input. First-run bootstrap admin (env config or setup token) so the onboarding engineer can provision the first site and users. Boundaries: `ONBOARDING_ADMIN` manages sites/lines/tags; `OPERATOR` / `SUPERVISOR` execute governed writes; `VIEWER` read-only. Full Spring Security / RBAC stays M4.2. Test: `VIEWER` or `OPERATOR` cannot mutate `/registry`; an `OPERATOR` write stores the server-derived identity in `command_audit_logs`.
+
+* **Step M3.3 — Edge OPC UA Connection & Tag Read Probe:** `POST /api/onboarding/probe` (backend/edge) tests TCP/OPC UA reachability for an endpoint URL + security mode and one-shot reads candidate node IDs. Per-tag diagnostics: reachability, sample value, data type, OPC UA quality `GOOD` / `BAD` / `UNREACHABLE`. Test: Prosys with two valid node IDs and one missing node; live values on valid nodes; diagnostic error on the bad node; edge service stays up.
+
+* **Step M3.4 — Single-Source Registry-to-Edge Config Sync:** Versioned active manifest `GET /api/edge/{siteId}/config` (active lines, tag addresses, deadbands, writable flags). `plant-edge-service` fetches/syncs its active tag list on startup and on config-version updates; last-known-good JSON/SQLite snapshot on disk so a WAN-outage restart still loads mappings. Test: add a tag in `/registry`; edge polls and publishes it with no YAML edit and no container restart; restart edge with the backend stopped and confirm snapshot fallback.
+
+* **Step M3.5 — Guided 4-Step Onboarding Wizard in Next.js:** `/onboarding` four steps: (1) Site & Line — select existing or create; (2) Edge & Endpoint — OPC UA URL + live connection probe; (3) Tag Mapping Import — structured table or CSV/JSON paste, starter templates (reactor sensor/valve set), per-tag read probes; (4) Live Telemetry Smoke Check — subscribe `/api/stream/telemetry` for the new site/line and require at least one live reading before activating the line. UI separates No Data Yet (Pending Activation) from Stale and BAD quality. Test: wizard E2E for `SITE-TEST` / `REACTOR-01` against Prosys, then land on the live console with streaming values.
+
+* **Step M3.6 — Onboarding Playbook & Pre-Cutover Checklist:** Repeatable plant checklist: target PLC OPC UA security mode (None vs `SignAndEncrypt`), broker per-site credentials/ACLs, heartbeat and staleness, TimescaleDB retention. Downloadable CSV/JSON tag templates for reactors, utilities, and vessels. Test: cold-start dry run from an empty database to a live streaming reactor line using only the wizard and checklist.
+
+### Milestone 4: Production Hardening, Reliability & Scale
+
+* **Step M4.1 — Broker Auth, ACLs & TLS Transport:** Mosquitto `allow_anonymous false`; per-site/per-client ACLs so an edge node publishes only its own telemetry/ACKs and subscribes only to its site’s commands. Credentials + TLS (`ssl://` / `tls://`) on the broker, Paho clients, and the reverse proxy (Caddy) in front of web/API. Check: unauthorized client or cross-site topic rejected; authenticated edge publishes telemetry and receives only its own site’s commands.
+
+* **Step M4.2 — Full Authentication & RBAC Enforcement:** Spring Security on the backend; Next.js login/session or token auth. Enforce `VIEWER`, `OPERATOR`, `SUPERVISOR`, `ONBOARDING_ADMIN`. `requestedBy` strictly from the authenticated user (`WriteCommandModal` cannot spoof names); `command_audit_logs` stay append-only and trigger-protected. Check: unauthenticated or `VIEWER` requests to write/registry endpoints blocked; valid commands record the real operator identity in the audit log.
+
+* **Step M4.3 — OPC UA Security Policies (Sign / SignAndEncrypt) & Trust Store:** Beyond None/anonymous: `Sign` / `SignAndEncrypt`, user/certificate credentials, trusted/rejected certificate store. Check: connect, subscribe, and write against a security-enabled OPC UA endpoint; untrusted certificates handled predictably.
+
+* **Step M4.4 — Heartbeat, Staleness Detection & Command Timeout Sweeper:** Publish edge health to `site/{siteId}/edge/status` (Section 7.4); surface per-tag age/staleness in `/api/telemetry/latest`, SSE payloads, and the Next.js console when data stops or the edge is offline. `@Scheduled` sweeper moves stuck `VALIDATED_DISPATCHED` commands to `CommandStatus.TIMEOUT` via the same conditional transition as ACK handling; late-ACK behavior explicit; durable subscriptions (`cleanSession=false`) so brief disconnects do not drop commands. Check: kill edge/broker briefly and confirm staleness in the UI; let a dispatched command time out and confirm `TIMEOUT` plus audit logging.
+
+* **Step M4.5 — TimescaleDB Lifecycle, Buffer Backpressure, Metrics & Backups:** Compression and retention policies on the telemetry hypertable so disk stays bounded (CX23). Prometheus/Actuator metrics; alert on edge offline, buffer depth, and ingest saturation; expose SQLite buffer overflow/drop counts (not log-only warnings); automated PostgreSQL/TimescaleDB backups. Check: retention/compression active; metrics report health/queue/buffer stats; backup/restore works on a test snapshot.
+
+* **Step M4.6 — Additional Drivers & Alarm Workflow Expansion (As Needed):** Concrete S7, `MODBUS_TCP`, or `BACNET_IP` adapters/gateways only for protocols a target line actually needs. Alarm acknowledgement, shelving, and external notifications only after telemetry and command reliability are proven.
+
+### Milestone 5: Digital Logbook (Station Shift) Integration
+
+Station-shift digital logbook on the M1.8 command audit trail. Step breakdown follows after Milestone 4.

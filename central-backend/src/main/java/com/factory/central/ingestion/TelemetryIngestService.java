@@ -146,7 +146,14 @@ public class TelemetryIngestService {
                 coerced.booleanValue(),
                 coerced.stringValue(),
                 quality);
-        return new AcceptedReading(tag, coerced.value(), quality, timestamp, row);
+        return new AcceptedReading(
+                tag,
+                coerced.value(),
+                quality,
+                timestamp,
+                row,
+                TelemetryPayloadParser.observedDataType(reading.dataType()),
+                reading.nodeWritable());
     }
 
     private TagMapping resolveTag(String siteId, String lineId, RawReading reading) {
@@ -198,7 +205,12 @@ public class TelemetryIngestService {
                     AlarmSeverity.NONE,
                     null));
             boolean freeze = prior.severity() != AlarmSeverity.NONE;
-            LatestTagState updated = prior.withSample(reading.value(), reading.quality(), reading.timestamp())
+            LatestTagState updated = prior.withSample(
+                    reading.value(),
+                    reading.quality(),
+                    reading.timestamp(),
+                    reading.observedDataType(),
+                    reading.nodeWritable())
                     .withAlarm(
                             prior.severity(),
                             prior.direction(),
@@ -211,6 +223,16 @@ public class TelemetryIngestService {
         }
 
         AlarmEvaluation evaluation = alarmEvaluator.evaluate(tag, reading.value(), reading.quality());
+        String observed = reading.observedDataType();
+        Boolean nodeWritable = reading.nodeWritable();
+        if (existing.isPresent()) {
+            if (observed == null) {
+                observed = existing.get().observedDataType();
+            }
+            if (nodeWritable == null) {
+                nodeWritable = existing.get().nodeWritable();
+            }
+        }
         LatestTagState next = LatestTagState.initial(
                 tag.getSiteId(),
                 tag.getLineId(),
@@ -219,7 +241,9 @@ public class TelemetryIngestService {
                 reading.quality(),
                 reading.timestamp(),
                 evaluation.severity(),
-                evaluation.direction());
+                evaluation.direction(),
+                observed,
+                nodeWritable);
         latestTagCache.put(next);
         publishLive(existing.orElse(null), next);
     }
@@ -242,9 +266,10 @@ public class TelemetryIngestService {
 
     private static String normalizeQuality(String quality) {
         if (quality == null || quality.isBlank()) {
-            return "GOOD";
+            // Persist blank as non-good; never invent GOOD for a missing quality.
+            return "";
         }
-        return quality.toUpperCase();
+        return quality.trim().toUpperCase();
     }
 
     private enum IngestSource {

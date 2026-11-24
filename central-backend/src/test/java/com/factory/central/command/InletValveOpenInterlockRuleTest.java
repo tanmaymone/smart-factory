@@ -34,9 +34,9 @@ class InletValveOpenInterlockRuleTest {
                 "setpoint",
                 Protocol.OPC_UA,
                 "opc.tcp://localhost",
-                "ns=3;i=1003",
+                "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1003",
                 TagDataType.FLOAT,
-                "°C",
+                "Â\u00B0C",
                 true,
                 15.0,
                 90.0,
@@ -73,6 +73,8 @@ class InletValveOpenInterlockRuleTest {
                 AlarmSeverity.NONE,
                 null,
                 false,
+                null,
+                null,
                 null,
                 null));
         assertThat(rule.violation(ctx()).orElseThrow()).contains("timestamp is missing");

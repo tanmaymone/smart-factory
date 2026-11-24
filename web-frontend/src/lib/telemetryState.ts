@@ -188,6 +188,8 @@ function toRow(
     alarmFrozen: sample?.alarmFrozen ?? false,
     alarmValue: sample?.alarmValue ?? null,
     alarmTimestamp: sample?.alarmTimestamp ?? null,
+    observedDataType: sample?.observedDataType ?? null,
+    nodeWritable: sample?.nodeWritable ?? null,
     hasSample: hasSampleValue(value),
   };
 }

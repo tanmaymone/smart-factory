@@ -7,7 +7,7 @@
   .\scripts\Prepare-Demo.ps1 -EnableInterlock -ValvePosition 2.0
   .\scripts\Prepare-Demo.ps1 -ValvePosition 75.5
   .\scripts\Prepare-Demo.ps1 -ClearInterlock
-  .\scripts\Prepare-Demo.ps1 -NodeId "ns=3;s=Valve101Pos" -TagCode VALVE_101_POS
+  .\scripts\Prepare-Demo.ps1 -NodeId "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;s=Valve101Pos" -TagCode VALVE_101_POS
 #>
 [CmdletBinding()]
 param(
@@ -117,7 +117,7 @@ function ConvertTo-RegistryPutBody {
 
 function Write-SharedNodeWarning {
     Write-WarnLine ""
-    Write-WarnLine "SHARED NODE WARNING: INDORE and PUNE seed tags VALVE_101_POS, REACTOR_TEMP_C, and REACTOR_TEMP_SP share Prosys nodes ns=3;i=1001-1003."
+    Write-WarnLine "SHARED NODE WARNING: INDORE and PUNE seed tags VALVE_101_POS, REACTOR_TEMP_C, and REACTOR_TEMP_SP share Prosys SimulationNodes (nsu=…;i=1002/1007)."
     Write-WarnLine "After pointing VALVE_101_POS or REACTOR_TEMP_SP at a custom writable NodeId, switching sites still reads/writes that same physical node until each site has its own NodeId in edge YAML and registry externalAddress."
     Write-WarnLine "Keep OPC_UA_ENDPOINT and OPC_ENDPOINT_URL on the same host Prosys advertises (localhost vs machine name such as Tanmay)."
 }
@@ -221,7 +221,7 @@ if (-not [string]::IsNullOrWhiteSpace($NodeId)) {
     $putBody = ConvertTo-RegistryPutBody -Tag $tag -ExternalAddress $NodeId -SetExternalAddress
     $updated = Invoke-CurlJson -Method PUT -Url "$BackendOrigin/api/registry/tags/$($tag.id)" -Body $putBody
     Write-Info ("Registry externalAddress now: {0}" -f $updated.externalAddress)
-    Write-WarnLine "LOCAL EDGE YAML ONLY (do not commit — SeedAlignmentTest pins ns=3;i=1001-1004):"
+    Write-WarnLine "LOCAL EDGE YAML ONLY (do not commit unless SeedAlignmentTest is updated to the same node-id):"
     Write-WarnLine "  In plant-edge-service/src/main/resources/application.yml, set the matching tag node-id to:"
     Write-WarnLine "    node-id: $NodeId"
     Write-WarnLine "  Then restart plant-edge-service. FLOAT tags need a Float or Double OPC UA node (not Int32)."

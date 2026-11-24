@@ -70,12 +70,12 @@ class TelemetryPayloadParserTest {
                   "lineId": "LINE-01",
                   "timestamp": "2026-11-19T12:00:01.250Z",
                   "readings": [
-                    { "externalAddress": "ns=3;i=1002", "value": 55.0, "quality": "GOOD" }
+                    { "externalAddress": "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1002", "value": 55.0, "quality": "GOOD" }
                   ]
                 }
                 """;
         ParsedPayload payload = TelemetryPayloadParser.parse(objectMapper.readTree(json));
-        assertThat(payload.readings().getFirst().externalAddress()).isEqualTo("ns=3;i=1002");
+        assertThat(payload.readings().getFirst().externalAddress()).isEqualTo("nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1002");
         assertThat(payload.readings().getFirst().tagCode()).isNull();
     }
 
@@ -109,5 +109,23 @@ class TelemetryPayloadParserTest {
                 .isInstanceOf(PayloadParseException.class)
                 .extracting(ex -> ((PayloadParseException) ex).getCode())
                 .isEqualTo(IngestionErrorCode.INVALID_VALUE);
+    }
+
+    @Test
+    void readsNodeWritableAndNormalizesObservedType() throws Exception {
+        String json =
+                """
+                {
+                  "siteId": "INDORE",
+                  "lineId": "LINE-01",
+                  "readings": [
+                    { "tagCode": "VALVE_101_POS", "value": 12, "dataType": "int", "nodeWritable": false }
+                  ]
+                }
+                """;
+        var reading = TelemetryPayloadParser.parse(objectMapper.readTree(json)).readings().getFirst();
+        assertThat(reading.nodeWritable()).isFalse();
+        assertThat(TelemetryPayloadParser.observedDataType(reading.dataType())).isEqualTo("INT");
+        assertThat(TelemetryPayloadParser.observedDataType("custom")).isNull();
     }
 }

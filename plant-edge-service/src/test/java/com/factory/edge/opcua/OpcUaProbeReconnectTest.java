@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-@Tag("EDGE-OPC-PROBE")
+@Tag("EDGE-RECONNECT")
 class OpcUaProbeReconnectTest {
 
     private OpcUaProperties properties;
@@ -49,7 +49,7 @@ class OpcUaProbeReconnectTest {
         tag.setSiteId("INDORE");
         tag.setLineId("LINE-01");
         tag.setTagCode("VALVE_101_POS");
-        tag.setNodeId("ns=3;i=1001");
+        tag.setNodeId("nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001");
         tag.setDeadband(0.5);
         properties.setTags(List.of(tag));
 
@@ -179,11 +179,12 @@ class OpcUaProbeReconnectTest {
                 "INDORE",
                 "LINE-01",
                 "VALVE_101_POS",
-                "ns=3;i=1001",
+                "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                 value,
                 "GOOD",
                 Instant.parse("2026-11-20T12:00:00Z"),
                 Instant.parse("2026-11-20T12:00:00Z"),
+                null,
                 null);
     }
 

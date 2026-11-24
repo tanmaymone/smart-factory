@@ -13,9 +13,16 @@ public record LatestTagState(
         AlarmDirection direction,
         boolean alarmFrozen,
         Object alarmValue,
-        Instant alarmTimestamp) {
+        Instant alarmTimestamp,
+        String observedDataType,
+        Boolean nodeWritable) {
 
-    public LatestTagState withSample(Object value, String quality, Instant timestamp) {
+    public LatestTagState withSample(
+            Object value,
+            String quality,
+            Instant timestamp,
+            String observedDataType,
+            Boolean nodeWritable) {
         return new LatestTagState(
                 siteId,
                 lineId,
@@ -27,7 +34,9 @@ public record LatestTagState(
                 direction,
                 alarmFrozen,
                 alarmValue,
-                alarmTimestamp);
+                alarmTimestamp,
+                observedDataType != null ? observedDataType : this.observedDataType,
+                nodeWritable != null ? nodeWritable : this.nodeWritable);
     }
 
     public LatestTagState withAlarm(
@@ -47,7 +56,9 @@ public record LatestTagState(
                 direction,
                 alarmFrozen,
                 alarmValue,
-                alarmTimestamp);
+                alarmTimestamp,
+                observedDataType,
+                nodeWritable);
     }
 
     public static LatestTagState initial(
@@ -59,6 +70,20 @@ public record LatestTagState(
             Instant timestamp,
             AlarmSeverity severity,
             AlarmDirection direction) {
+        return initial(siteId, lineId, tagCode, value, quality, timestamp, severity, direction, null, null);
+    }
+
+    public static LatestTagState initial(
+            String siteId,
+            String lineId,
+            String tagCode,
+            Object value,
+            String quality,
+            Instant timestamp,
+            AlarmSeverity severity,
+            AlarmDirection direction,
+            String observedDataType,
+            Boolean nodeWritable) {
         boolean alarming = severity != null && severity != AlarmSeverity.NONE;
         return new LatestTagState(
                 siteId,
@@ -71,6 +96,8 @@ public record LatestTagState(
                 direction,
                 false,
                 alarming ? value : null,
-                alarming ? timestamp : null);
+                alarming ? timestamp : null,
+                observedDataType,
+                nodeWritable);
     }
 }

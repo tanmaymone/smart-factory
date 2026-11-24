@@ -9,10 +9,11 @@ import com.fasterxml.jackson.databind.node.DoubleNode;
 import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import org.eclipse.milo.opcua.stack.core.NodeIds;
+import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UShort;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-@Tag("EDGE-CMD")
+@Tag("EDGE-TYPE")
 class CommandValueCoercerTest {
 
     @Test
@@ -27,6 +28,37 @@ class CommandValueCoercerTest {
 
         Object wrongWidth = CommandValueCoercer.coerce("FLOAT", new DoubleNode(50.5), NodeIds.Int32);
         assertThat(wrongWidth).isInstanceOf(CoerceFail.class);
+    }
+
+    @Test
+    void floatOverflowRejectedAsNonFinite() {
+        Object overflow = CommandValueCoercer.coerce("FLOAT", new DoubleNode(1e40), NodeIds.Float);
+        assertThat(overflow).isInstanceOf(CoerceFail.class);
+        assertThat(((CoerceFail) overflow).reason()).contains("overflows Float");
+    }
+
+    @Test
+    void uint16GetsUShortAndRejectsOutOfRange() {
+        Object ok = CommandValueCoercer.coerce("INT", new IntNode(65535), NodeIds.UInt16);
+        assertThat(ok).isInstanceOf(CoerceOk.class);
+        assertThat(((CoerceOk) ok).variant().getValue()).isInstanceOf(UShort.class);
+        assertThat(((UShort) ((CoerceOk) ok).variant().getValue()).intValue()).isEqualTo(65535);
+
+        Object zero = CommandValueCoercer.coerce("INT", new IntNode(0), NodeIds.UInt16);
+        assertThat(zero).isInstanceOf(CoerceOk.class);
+        assertThat(((CoerceOk) zero).variant().getValue()).isInstanceOf(UShort.class);
+
+        assertThat(CommandValueCoercer.coerce("INT", new IntNode(-1), NodeIds.UInt16))
+                .isInstanceOf(CoerceFail.class);
+        assertThat(CommandValueCoercer.coerce("INT", new IntNode(65536), NodeIds.UInt16))
+                .isInstanceOf(CoerceFail.class);
+        assertThat(CommandValueCoercer.coerce("INT", new DoubleNode(10.0), NodeIds.UInt16))
+                .isInstanceOf(CoerceOk.class);
+        assertThat(((CoerceOk) CommandValueCoercer.coerce("INT", new DoubleNode(10.0), NodeIds.UInt16))
+                        .variant()
+                        .getValue())
+                .isNotInstanceOf(Integer.class)
+                .isNotInstanceOf(Double.class);
     }
 
     @Test

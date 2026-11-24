@@ -42,8 +42,8 @@ class EdgeStatusServiceTest {
     void setUp() {
         opcUaProperties = new OpcUaProperties();
         opcUaProperties.setEndpointUrl("opc.tcp://localhost:53530/OPCUA/SimulationServer");
-        OpcUaProperties.TagConfig indore = tag("INDORE", "LINE-01", "VALVE_101_POS", "ns=3;i=1001", 0.5);
-        OpcUaProperties.TagConfig pune = tag("PUNE", "LINE-01", "VALVE_101_POS", "ns=3;i=1001", 0.5);
+        OpcUaProperties.TagConfig indore = tag("INDORE", "LINE-01", "VALVE_101_POS", "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001", 0.5);
+        OpcUaProperties.TagConfig pune = tag("PUNE", "LINE-01", "VALVE_101_POS", "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001", 0.5);
         opcUaProperties.setTags(List.of(indore, pune));
 
         session = mock(OpcUaSession.class);
@@ -117,18 +117,19 @@ class EdgeStatusServiceTest {
                         "INDORE",
                         "LINE-01",
                         "VALVE_101_POS",
-                        "ns=3;i=1001",
+                        "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                         42,
                         "GOOD",
                         Instant.parse("2026-01-15T10:00:00Z"),
                         Instant.parse("2026-01-15T10:00:00Z"),
+                        null,
                         null),
                 true);
 
         EdgeStatusSnapshot snap = service.snapshot();
         assertThat(snap.tags()).hasSize(2);
         assertThat(snap.tags().get(0).siteId()).isEqualTo("INDORE");
-        assertThat(snap.tags().get(0).nodeId()).isEqualTo("ns=3;i=1001");
+        assertThat(snap.tags().get(0).nodeId()).isEqualTo("nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001");
         assertThat(snap.tags().get(0).value()).isEqualTo(42);
         assertThat(snap.tags().get(0).emitted()).isTrue();
         assertThat(snap.tags().get(1).siteId()).isEqualTo("PUNE");
@@ -166,7 +167,7 @@ class EdgeStatusServiceTest {
                         "INDORE",
                         "LINE-01",
                         "REACTOR_TEMP_SP",
-                        "ns=3;i=1003",
+                        "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1003",
                         72.5,
                         72.5,
                         at),

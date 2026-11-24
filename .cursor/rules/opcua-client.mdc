@@ -1,0 +1,14 @@
+---
+description: OPC UA client habits for real PLCs. Namespace, quality, datatype, reconnect, security.
+globs: plant-edge-service/**/*.java,central-backend/**/command/**/*.java
+alwaysApply: false
+---
+
+# OPC UA floor habits
+
+- Resolve plant NodeIds from a namespace URI plus identifier inside `MiloOpcUaSession.start` on every connect and reconnect. Hardcode `ns=` only for `ns=0` built-in types. Do not add `ns=3` (or any other server index) to YAML, seeds, or tests.
+- Trust a value for last-good, interlocks, setpoints, or command ACK only through `QualityGate.requireGood`. Persist Bad/Uncertain telemetry with its `quality` field.
+- Build write Variants only in `CommandValueCoercer`, after `OpcUaCommandWriter` has read the target `DataType` attribute. Do not pass a Java double or int where the node is Float or UInt16.
+- Reconnect only by closing the session and calling `MiloOpcUaSession.start` again so subscriptions and monitored items are recreated. Do not open a second OPC UA client or reconnect loop.
+- Select the endpoint only in `OpcUaClientFactory` from `app.opcua.security.*`. `AnonymousProvider` and `SecurityPolicy.None` are allowed only when that config says so. SignAndEncrypt uses Basic256Sha256 and the configured PKI; missing trust material fails startup.
+- New regressions use `EDGE-NS`, `EDGE-QUALITY`, `EDGE-TYPE`, `EDGE-RECONNECT`, or `EDGE-SEC`.

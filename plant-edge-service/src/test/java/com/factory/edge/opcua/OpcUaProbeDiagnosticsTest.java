@@ -46,7 +46,7 @@ class OpcUaProbeDiagnosticsTest {
         tag.setSiteId("INDORE");
         tag.setLineId("LINE-01");
         tag.setTagCode("VALVE_101_POS");
-        tag.setNodeId("ns=3;i=1001");
+        tag.setNodeId("nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001");
         tag.setDeadband(0.5);
         properties.setTags(List.of(tag));
 
@@ -124,11 +124,12 @@ class OpcUaProbeDiagnosticsTest {
                 "INDORE",
                 "LINE-01",
                 "VALVE_101_POS",
-                "ns=3;i=1001",
+                "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                 value,
                 "GOOD",
                 Instant.parse("2026-01-15T10:00:00Z"),
                 Instant.parse("2026-01-15T10:00:00Z"),
+                null,
                 null);
     }
 

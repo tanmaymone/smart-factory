@@ -164,7 +164,8 @@ public class TagMapping {
             Double warningLow,
             Double warningHigh,
             Double criticalLow,
-            Double criticalHigh) {
+            Double criticalHigh,
+            String externalAddress) {
         boolean changed = false;
         if (!Objects.equals(this.endpointUrl, endpointUrl)) {
             this.endpointUrl = endpointUrl;
@@ -186,7 +187,38 @@ public class TagMapping {
             this.criticalHigh = criticalHigh;
             changed = true;
         }
+        if (retargetLegacyNode(externalAddress)) {
+            changed = true;
+        }
         return changed;
+    }
+
+    /**
+     * Move a tag off a known Prosys seed {@code ns=3;i=…} address onto the seeded {@code nsu=} form.
+     * Hand-edited addresses (including {@code ns=3;s=…}) are left alone and fail at the edge.
+     */
+    private boolean retargetLegacyNode(String seeded) {
+        if (seeded == null || seeded.isBlank() || seeded.equals(externalAddress)) {
+            return false;
+        }
+        if (!isLegacySeedAddress(tagCode, externalAddress)) {
+            return false;
+        }
+        externalAddress = seeded;
+        return true;
+    }
+
+    static boolean isLegacySeedAddress(String tagCode, String address) {
+        if (address == null) {
+            return false;
+        }
+        return switch (tagCode) {
+            case "VALVE_101_POS" -> "ns=3;i=1001".equals(address) || "ns=3;i=1007".equals(address);
+            case "REACTOR_TEMP_SP" -> "ns=3;i=1003".equals(address) || "ns=3;i=1007".equals(address);
+            case "VALVE_201_POS" -> "ns=3;i=1004".equals(address) || "ns=3;i=1007".equals(address);
+            case "REACTOR_TEMP_C" -> "ns=3;i=1002".equals(address);
+            default -> false;
+        };
     }
 
     public UUID getId() {

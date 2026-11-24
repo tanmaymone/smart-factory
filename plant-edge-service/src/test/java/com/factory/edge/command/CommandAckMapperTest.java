@@ -21,7 +21,7 @@ class CommandAckMapperTest {
                         "INDORE",
                         "LINE-01",
                         "VALVE_101_POS",
-                        "ns=3;i=1001",
+                        "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                         null,
                         "unknown tag",
                         Instant.parse("2026-11-21T12:00:00Z"),

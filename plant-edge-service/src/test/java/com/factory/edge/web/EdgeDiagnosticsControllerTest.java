@@ -52,7 +52,7 @@ class EdgeDiagnosticsControllerTest {
                                                 "INDORE",
                                                 "LINE-01",
                                                 "VALVE_101_POS",
-                                                "ns=3;i=1001",
+                                                "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                                                 0.5,
                                                 42,
                                                 "GOOD",
