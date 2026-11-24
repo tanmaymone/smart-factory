@@ -14,6 +14,7 @@ import com.factory.central.cache.LatestTagCache;
 import com.factory.central.mqtt.MqttPublishException;
 import com.factory.central.mqtt.MqttPublisher;
 import com.factory.central.registry.Protocol;
+import com.factory.central.registry.RegistryLivenessService;
 import com.factory.central.registry.TagDataType;
 import com.factory.central.registry.TagMapping;
 import com.factory.central.stream.CommandUpdateEvent;
@@ -45,6 +46,9 @@ class CommandPublishFailureTest {
     private LatestTagCache latestTagCache;
 
     @Mock
+    private RegistryLivenessService livenessService;
+
+    @Mock
     private InterlockEvaluator interlockEvaluator;
 
     @Mock
@@ -69,9 +73,11 @@ class CommandPublishFailureTest {
 
     @BeforeEach
     void setUp() {
+        when(livenessService.isLive(any(TagMapping.class))).thenReturn(true);
         service = new CommandService(
                 tagResolver,
                 latestTagCache,
+                livenessService,
                 interlockEvaluator,
                 auditWriter,
                 auditLogRepository,

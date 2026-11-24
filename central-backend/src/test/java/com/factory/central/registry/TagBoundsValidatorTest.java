@@ -1,8 +1,10 @@
 package com.factory.central.registry;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -19,6 +21,21 @@ class TagBoundsValidatorTest {
     void acceptsFullOrderedBand() {
         assertThatCode(() -> TagBoundsValidator.validate(request(null, null, 30.0, 70.0, 20.0, 80.0)))
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void acceptsEqualMinAndMax() {
+        assertThatCode(() -> TagBoundsValidator.validate(request(10.0, 10.0, null, null, null, null)))
+                .doesNotThrowAnyException();
+        assertThat(TagBoundsValidator.collect(request(10.0, 10.0, null, null, null, null))).isEmpty();
+    }
+
+    @Test
+    void collectReportsEveryInvertedBand() {
+        List<RegistryErrorResponse.FieldErrorDetail> errors =
+                TagBoundsValidator.collect(request(100.0, 0.0, 70.0, 30.0, 80.0, 20.0));
+        assertThat(errors).extracting(RegistryErrorResponse.FieldErrorDetail::field)
+                .contains("minValue", "warningLow", "criticalLow", "warningHigh");
     }
 
     @Test
@@ -86,6 +103,7 @@ class TagBoundsValidatorTest {
                 warningHigh,
                 criticalLow,
                 criticalHigh,
+                null,
                 null);
     }
 }

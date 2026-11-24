@@ -333,6 +333,133 @@ class RegistryApiIT {
         assertThat(mqttClient.isConnected()).isTrue();
     }
 
+    @Test
+    @Tag("SF-REGISTRY")
+    void createsSiteLineAndImportsReactorBatchIdempotently() throws Exception {
+        mockMvc.perform(post("/api/registry/sites")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"siteCode":"NASHIK","name":"Nashik Plant","timezone":"Asia/Kolkata"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.siteCode").value("NASHIK"))
+                .andExpect(jsonPath("$.lifecycle").value("DRAFT"));
+
+        mockMvc.perform(post("/api/registry/sites")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"siteCode":"NASHIK","name":"Nashik Plant","timezone":"Asia/Kolkata"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.siteCode").value("NASHIK"));
+        assertThat(siteRepository.findById("NASHIK")).isPresent();
+
+        mockMvc.perform(post("/api/registry/lines")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"siteCode":"NASHIK","lineCode":"LINE-01","name":"Reactor Line 1"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.lineCode").value("LINE-01"))
+                .andExpect(jsonPath("$.lifecycle").value("DRAFT"));
+
+        mockMvc.perform(post("/api/registry/lines")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"siteCode":"NASHIK","lineCode":"LINE-01","name":"Reactor Line 1"}
+                                """))
+                .andExpect(status().isOk());
+        assertThat(lineRepository.findById(new LineId("NASHIK", "LINE-01"))).isPresent();
+
+        mockMvc.perform(put("/api/registry/sites/NASHIK")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Nashik Plant","timezone":"Asia/Kolkata","lifecycle":"ACTIVE"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lifecycle").value("ACTIVE"));
+        mockMvc.perform(put("/api/registry/sites/NASHIK")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Nashik Plant","timezone":"Asia/Kolkata","lifecycle":"DRAFT"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lifecycle").value("DRAFT"));
+
+        String batchBody =
+                """
+                {"tags":[
+                  {"siteId":"NASHIK","lineId":"LINE-01","tagCode":"REACTOR_TEMP_C","description":"Reactor temperature","protocol":"OPC_UA","endpointUrl":"opc.tcp://localhost:53530/OPCUA/SimulationServer","externalAddress":"ns=3;i=1002","dataType":"FLOAT","unit":"C","writable":false,"deadband":0.2,"warningLow":30,"warningHigh":70,"criticalLow":20,"criticalHigh":80},
+                  {"siteId":"NASHIK","lineId":"LINE-01","tagCode":"REACTOR_TEMP_SP","description":"Reactor setpoint","protocol":"OPC_UA","endpointUrl":"opc.tcp://localhost:53530/OPCUA/SimulationServer","externalAddress":"ns=3;i=1007","dataType":"FLOAT","unit":"C","writable":true,"minValue":15,"maxValue":90,"deadband":0.1},
+                  {"siteId":"NASHIK","lineId":"LINE-01","tagCode":"BAD_BOUNDS","description":"Invalid","protocol":"OPC_UA","endpointUrl":"opc.tcp://localhost:53530/OPCUA/SimulationServer","externalAddress":"ns=3;i=1003","dataType":"FLOAT","writable":false,"minValue":100,"maxValue":10,"deadband":0.1}
+                ]}
+                """;
+
+        MvcResult first = mockMvc.perform(post("/api/registry/tags/batch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(batchBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.received").value(3))
+                .andExpect(jsonPath("$.created").value(2))
+                .andExpect(jsonPath("$.updated").value(0))
+                .andExpect(jsonPath("$.failed").value(1))
+                .andExpect(jsonPath("$.rows[2].outcome").value("FAILED"))
+                .andExpect(jsonPath("$.rows[2].errors[0].code").value(RegistryErrorCode.INVALID_BOUNDS))
+                .andExpect(jsonPath("$.rows[2].errors[0].field").value("minValue"))
+                .andReturn();
+
+        JsonNode firstRoot = objectMapper.readTree(first.getResponse().getContentAsString());
+        String id1 = firstRoot.path("rows").get(0).path("id").asText();
+        String id2 = firstRoot.path("rows").get(1).path("id").asText();
+
+        assertThat(tagMappingRepository.findBySiteIdAndLineIdAndTagCode("NASHIK", "LINE-01", "REACTOR_TEMP_C"))
+                .isPresent()
+                .get()
+                .extracting(TagMapping::getLifecycle)
+                .isEqualTo(RegistryLifecycle.DRAFT);
+        assertThat(tagMappingRepository.findBySiteIdAndLineIdAndTagCode("NASHIK", "LINE-01", "REACTOR_TEMP_SP"))
+                .isPresent();
+        assertThat(tagMappingRepository.findBySiteIdAndLineIdAndTagCode("NASHIK", "LINE-01", "BAD_BOUNDS"))
+                .isEmpty();
+
+        mockMvc.perform(post("/api/registry/tags/batch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(batchBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.created").value(0))
+                .andExpect(jsonPath("$.updated").value(2))
+                .andExpect(jsonPath("$.failed").value(1))
+                .andExpect(jsonPath("$.rows[0].id").value(id1))
+                .andExpect(jsonPath("$.rows[1].id").value(id2));
+
+        mockMvc.perform(post("/api/registry/tags/batch")
+                        .contentType(MediaType.valueOf("text/csv"))
+                        .content(""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(RegistryErrorCode.VALIDATION_FAILED))
+                .andExpect(jsonPath("$.message").value("CSV header is required"))
+                .andExpect(jsonPath("$.trace").doesNotExist());
+
+        mockMvc.perform(post("/api/registry/tags/batch")
+                        .contentType(MediaType.valueOf("text/csv"))
+                        .content(
+                                "siteId,lineId,tagCode,description,protocol,endpointUrl,externalAddress,dataType,writable,deadband\n"
+                                        + "NASHIK,LINE-01,T1,\"open,OPC_UA,opc.tcp://x,ns=3;i=1,FLOAT,false,0.1\n"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(RegistryErrorCode.VALIDATION_FAILED))
+                .andExpect(jsonPath("$.trace").doesNotExist())
+                .andExpect(jsonPath("$.Exception").doesNotExist());
+
+        tagMappingRepository
+                .findBySiteIdAndLineIdAndTagCode("NASHIK", "LINE-01", "REACTOR_TEMP_C")
+                .ifPresent(tagMappingRepository::delete);
+        tagMappingRepository
+                .findBySiteIdAndLineIdAndTagCode("NASHIK", "LINE-01", "REACTOR_TEMP_SP")
+                .ifPresent(tagMappingRepository::delete);
+        lineRepository.findById(new LineId("NASHIK", "LINE-01")).ifPresent(lineRepository::delete);
+        siteRepository.findById("NASHIK").ifPresent(siteRepository::delete);
+    }
+
     private UUID readId(MvcResult result) throws Exception {
         JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
         return UUID.fromString(root.get("id").asText());
@@ -357,7 +484,8 @@ class RegistryApiIT {
                 tag.getWarningHigh(),
                 tag.getCriticalLow(),
                 tag.getCriticalHigh(),
-                tag.getInterlockRuleKey());
+                tag.getInterlockRuleKey(),
+                tag.getLifecycle());
     }
 
     private static TagMappingRequest sampleRequest(
@@ -386,6 +514,7 @@ class RegistryApiIT {
                 warningHigh,
                 criticalLow,
                 criticalHigh,
+                null,
                 null);
     }
 }

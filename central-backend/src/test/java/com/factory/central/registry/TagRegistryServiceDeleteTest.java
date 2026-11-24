@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.factory.central.access.ActorContext;
 import com.factory.central.cache.AlarmDirection;
 import com.factory.central.cache.AlarmSeverity;
 import com.factory.central.cache.InMemoryLatestTagCache;
@@ -31,13 +32,20 @@ class TagRegistryServiceDeleteTest {
     @Mock
     private LineRepository lineRepository;
 
+    @Mock
+    private SiteRepository siteRepository;
+
     private InMemoryLatestTagCache latestTagCache;
     private TagRegistryService service;
 
     @BeforeEach
     void setUp() {
         latestTagCache = new InMemoryLatestTagCache();
-        service = new TagRegistryService(tagMappingRepository, lineRepository, latestTagCache);
+        service = new TagRegistryService(
+                tagMappingRepository,
+                lineRepository,
+                new RegistryLivenessService(
+                        siteRepository, lineRepository, tagMappingRepository, latestTagCache));
     }
 
     @Test
@@ -55,7 +63,7 @@ class TagRegistryServiceDeleteTest {
                 AlarmDirection.HIGH));
         when(tagMappingRepository.findById(id)).thenReturn(Optional.of(tag));
 
-        service.delete(id);
+        service.delete(ActorContext.anonymous(), id);
 
         verify(tagMappingRepository).delete(tag);
         assertThat(latestTagCache.get("INDORE", "LINE-01", "DELETE_ME_TAG")).isEmpty();
@@ -76,7 +84,7 @@ class TagRegistryServiceDeleteTest {
                 null));
         when(tagMappingRepository.findById(id)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.delete(id))
+        assertThatThrownBy(() -> service.delete(ActorContext.anonymous(), id))
                 .isInstanceOf(RegistryException.class)
                 .extracting(ex -> ((RegistryException) ex).getCode())
                 .isEqualTo(RegistryErrorCode.TAG_NOT_FOUND);
@@ -96,7 +104,7 @@ class TagRegistryServiceDeleteTest {
                 "opc.tcp://localhost",
                 "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=9001",
                 TagDataType.FLOAT,
-                "Â\u00B0C",
+                "\u00B0C",
                 false,
                 null,
                 null,

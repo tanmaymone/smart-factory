@@ -3,6 +3,7 @@ package com.factory.central.stream;
 import com.factory.central.cache.LatestTagCache;
 import com.factory.central.cache.LatestTagState;
 import com.factory.central.cache.TelemetryStreamSink;
+import com.factory.central.registry.RegistryLivenessService;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PreDestroy;
 import java.util.Objects;
@@ -31,10 +32,13 @@ public class TelemetryStreamHub implements TelemetryStreamSink {
     private final StreamDispatch dispatch;
 
     public TelemetryStreamHub(
-            StreamProperties properties, LatestTagCache latestTagCache, MeterRegistry meterRegistry) {
+            StreamProperties properties,
+            LatestTagCache latestTagCache,
+            RegistryLivenessService livenessService,
+            MeterRegistry meterRegistry) {
         this.properties = properties;
         this.meterRegistry = meterRegistry;
-        this.dispatch = new StreamDispatch(latestTagCache, eventIds, this::remove);
+        this.dispatch = new StreamDispatch(latestTagCache, livenessService, eventIds, this::remove);
         this.dispatcher = new ThreadPoolExecutor(
                 properties.getDispatchPoolSize(),
                 properties.getDispatchPoolSize(),

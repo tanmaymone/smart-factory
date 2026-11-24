@@ -1,5 +1,6 @@
 package com.factory.central.registry;
 
+import com.factory.central.access.ActorContext;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
@@ -36,19 +37,19 @@ public class TagRegistryController {
 
     @PostMapping
     public ResponseEntity<TagMappingResponse> createTag(@Valid @RequestBody TagMappingRequest request) {
-        TagMappingResponse created = tagRegistryService.create(request);
+        TagMappingResponse created = tagRegistryService.create(ActorContext.anonymous(), request);
         return ResponseEntity.created(URI.create("/api/registry/tags/" + created.id())).body(created);
     }
 
     @PutMapping("/{id}")
     public TagMappingResponse updateTag(
             @PathVariable UUID id, @Valid @RequestBody TagMappingRequest request) {
-        return tagRegistryService.update(id, request);
+        return tagRegistryService.update(ActorContext.anonymous(), id, request);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTag(@PathVariable UUID id) {
-        tagRegistryService.delete(id);
+        tagRegistryService.delete(ActorContext.anonymous(), id);
         return ResponseEntity.noContent().build();
     }
 }

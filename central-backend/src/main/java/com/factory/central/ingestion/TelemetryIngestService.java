@@ -11,6 +11,7 @@ import com.factory.central.ingestion.TelemetryPayloadParser.PayloadParseExceptio
 import com.factory.central.ingestion.TelemetryPayloadParser.RawReading;
 import com.factory.central.ingestion.TelemetryPayloadParser.ReadingRejectException;
 import com.factory.central.ingestion.ValueCoercer.CoercedValue;
+import com.factory.central.registry.RegistryLivenessService;
 import com.factory.central.registry.TagMapping;
 import com.factory.central.registry.TagMappingRepository;
 import java.time.Clock;
@@ -27,6 +28,7 @@ public class TelemetryIngestService {
     private final TagMappingRepository tagMappingRepository;
     private final AlarmEvaluator alarmEvaluator;
     private final LatestTagCache latestTagCache;
+    private final RegistryLivenessService livenessService;
     private final TelemetryBatchWriter batchWriter;
     private final TelemetryStreamSink streamSink;
     private final Clock clock;
@@ -35,12 +37,14 @@ public class TelemetryIngestService {
             TagMappingRepository tagMappingRepository,
             AlarmEvaluator alarmEvaluator,
             LatestTagCache latestTagCache,
+            RegistryLivenessService livenessService,
             TelemetryBatchWriter batchWriter,
             TelemetryStreamSink streamSink,
             Clock clock) {
         this.tagMappingRepository = tagMappingRepository;
         this.alarmEvaluator = alarmEvaluator;
         this.latestTagCache = latestTagCache;
+        this.livenessService = livenessService;
         this.batchWriter = batchWriter;
         this.streamSink = streamSink;
         this.clock = clock;
@@ -127,7 +131,9 @@ public class TelemetryIngestService {
         }
 
         for (AcceptedReading reading : accepted) {
-            updateCache(reading);
+            if (livenessService.isLive(reading.tag())) {
+                updateCache(reading);
+            }
         }
         return IngestResult.of(accepted.size(), errors);
     }

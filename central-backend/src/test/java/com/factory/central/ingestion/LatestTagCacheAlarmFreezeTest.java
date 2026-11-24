@@ -1,6 +1,7 @@
 package com.factory.central.ingestion;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -11,6 +12,7 @@ import com.factory.central.cache.InMemoryLatestTagCache;
 import com.factory.central.cache.LatestTagState;
 import com.factory.central.cache.NoOpTelemetryStreamSink;
 import com.factory.central.registry.Protocol;
+import com.factory.central.registry.RegistryLivenessService;
 import com.factory.central.registry.TagDataType;
 import com.factory.central.registry.TagMapping;
 import com.factory.central.registry.TagMappingRepository;
@@ -41,10 +43,13 @@ class LatestTagCacheAlarmFreezeTest {
         TelemetryProperties properties = new TelemetryProperties();
         batchWriter = new TelemetryBatchWriter(historyRepository, properties, new SimpleMeterRegistry());
         Clock clock = Clock.fixed(Instant.parse("2026-11-19T12:00:00Z"), ZoneOffset.UTC);
+        RegistryLivenessService livenessService = mock(RegistryLivenessService.class);
+        when(livenessService.isLive(any(TagMapping.class))).thenReturn(true);
         ingestService = new TelemetryIngestService(
                 tagMappingRepository,
                 new AlarmEvaluator(),
                 cache,
+                livenessService,
                 batchWriter,
                 NoOpTelemetryStreamSink.INSTANCE,
                 clock);

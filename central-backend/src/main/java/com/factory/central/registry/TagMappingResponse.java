@@ -21,7 +21,8 @@ public record TagMappingResponse(
         Double warningHigh,
         Double criticalLow,
         Double criticalHigh,
-        String interlockRuleKey) {
+        String interlockRuleKey,
+        RegistryLifecycle lifecycle) {
 
     public static TagMappingResponse from(TagMapping tag) {
         return new TagMappingResponse(
@@ -43,6 +44,7 @@ public record TagMappingResponse(
                 tag.getWarningHigh(),
                 tag.getCriticalLow(),
                 tag.getCriticalHigh(),
-                tag.getInterlockRuleKey());
+                tag.getInterlockRuleKey(),
+                tag.getLifecycle());
     }
 }

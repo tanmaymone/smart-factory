@@ -23,4 +23,5 @@ public record TagMappingRequest(
         Double warningHigh,
         Double criticalLow,
         Double criticalHigh,
-        @Size(max = 128) String interlockRuleKey) {}
+        @Size(max = 128) String interlockRuleKey,
+        RegistryLifecycle lifecycle) {}

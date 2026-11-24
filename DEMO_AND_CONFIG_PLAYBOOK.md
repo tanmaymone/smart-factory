@@ -244,11 +244,26 @@ If the modal shows `NODE_NOT_WRITABLE` or `NODE_TYPE_MISMATCH`, the tag is still
 
 ## 2. Configuration Playbook
 
-### 2.1 Add a new OPC UA tag / NodeId
+### 2.1 Add a new plant, line, or OPC UA tag list
 
-Edge allow-list is YAML-only. A registry-only tag can pass central validation and still never be written at the plant.
+New sites, lines, and tag lists are created through the registry API. Do not edit Java seed code for a new plant.
 
-1. **Edge** — add under `app.opcua.tags` in [`plant-edge-service/src/main/resources/application.yml`](plant-edge-service/src/main/resources/application.yml):
+1. **Site and line** (idempotent; retries return 200 and leave the existing row):
+
+```powershell
+curl.exe -s -X POST "http://localhost:8080/api/registry/sites" -H "Content-Type: application/json" -d "{\"siteCode\":\"NASHIK\",\"name\":\"Nashik Plant\",\"timezone\":\"Asia/Kolkata\"}"
+curl.exe -s -X POST "http://localhost:8080/api/registry/lines" -H "Content-Type: application/json" -d "{\"siteCode\":\"NASHIK\",\"lineCode\":\"LINE-01\",\"name\":\"Reactor Line 1\"}"
+```
+
+API-created sites/lines default to lifecycle `DRAFT`. Promote with `PUT` (`lifecycle` may jump `DRAFT` → `ACTIVE`). Live telemetry, alarms, and writes require the site, line, and tag all `ACTIVE`.
+
+2. **Bulk tags** — `POST /api/registry/tags/batch` (`application/json` array or `{"tags":[...]}`, or `text/csv`). Batch rows default to `DRAFT`. Row-level errors stay in the 200 summary; structural CSV failures are 400.
+
+```powershell
+curl.exe -s -X POST "http://localhost:8080/api/registry/tags/batch" -H "Content-Type: application/json" -d "{\"tags\":[{\"siteId\":\"NASHIK\",\"lineId\":\"LINE-01\",\"tagCode\":\"REACTOR_TEMP_C\",\"description\":\"Reactor temperature\",\"protocol\":\"OPC_UA\",\"endpointUrl\":\"opc.tcp://localhost:53530/OPCUA/SimulationServer\",\"externalAddress\":\"nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1002\",\"dataType\":\"FLOAT\",\"unit\":\"C\",\"writable\":false,\"deadband\":0.2}]}"
+```
+
+3. **Single tag on an existing line** — Registry UI (`/registry?siteId=INDORE&lineId=LINE-01`) or `POST /api/registry/tags` (defaults to `ACTIVE`). Edge allow-list is still YAML-only until M3.4 config sync:
 
 ```yaml
 - site-id: INDORE
@@ -258,17 +273,9 @@ Edge allow-list is YAML-only. A registry-only tag can pass central validation an
   deadband: 0.5
 ```
 
-Restart the edge.
-
-2. **Central registry** — Registry UI (`/registry?siteId=INDORE&lineId=LINE-01`) or:
-
-```powershell
-curl.exe -s -X POST "http://localhost:8080/api/registry/tags" -H "Content-Type: application/json" -d "{\"siteId\":\"INDORE\",\"lineId\":\"LINE-01\",\"tagCode\":\"MY_NEW_TAG\",\"description\":\"My new tag\",\"protocol\":\"OPC_UA\",\"endpointUrl\":\"opc.tcp://localhost:53530/OPCUA/SimulationServer\",\"externalAddress\":\"nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;s=MyNewTag\",\"dataType\":\"FLOAT\",\"unit\":\"%\",\"writable\":true,\"minValue\":0,\"maxValue\":100,\"deadband\":0.5,\"warningLow\":null,\"warningHigh\":null,\"criticalLow\":null,\"criticalHigh\":null,\"interlockRuleKey\":null}"
-```
-
 Match `dataType` to the OPC UA node (FLOAT → Float/Double node; INT → integer node).
 
-3. **Permanent seed** (optional, for repo baseline): also update [`RegistrySeedRunner.sampleTags`](central-backend/src/main/java/com/factory/central/registry/RegistrySeedRunner.java) and [`SeedAlignmentTest`](plant-edge-service/src/test/java/com/factory/edge/opcua/SeedAlignmentTest.java).
+4. **Demo seed baseline** (optional, repo INDORE/PUNE only): update [`RegistrySeedRunner.sampleTags`](central-backend/src/main/java/com/factory/central/registry/RegistrySeedRunner.java) and [`SeedAlignmentTest`](plant-edge-service/src/test/java/com/factory/edge/opcua/SeedAlignmentTest.java).
 
 ### 2.2 Adjust deadbands
 

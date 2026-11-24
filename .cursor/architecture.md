@@ -176,25 +176,33 @@ smart-factory-platform/
 
 ### 6.1 Core Relational Tables (PostgreSQL)
 
-1. **`sites`**:
+1. **`sites`** (Flyway V1 + `V5__registry_lifecycle.sql`):
 
-   * `id` (UUID / String PK, e.g., `INDORE`, `PUNE`)
+   * `id` (String PK / `siteCode`, e.g., `INDORE`, `PUNE`)
 
    * `name` (VARCHAR)
 
    * `timezone` (VARCHAR)
 
-   * `status` (ENUM: `ONLINE`, `DEGRADED`, `OFFLINE`)
+   * `status` (ENUM: `ONLINE`, `DEGRADED`, `OFFLINE` — connectivity)
+
+   * `lifecycle` (ENUM: `DRAFT`, `VERIFIED`, `ACTIVE`; V5 default `ACTIVE` for seed; API create default `DRAFT`)
+
+   * REST: `GET/POST /api/registry/sites`; `GET/PUT /api/registry/sites/{siteCode}` (POST idempotent on `siteCode`: 201 create / 200 existing)
 
 2. **`lines`**:
 
-   * PK `(site_id, id)` — `id` e.g. `LINE-01` (Java property `lineId`); same line code allowed per site
+   * PK `(site_id, id)` — `id` / `lineCode` e.g. `LINE-01` (Java property `lineId`); same line code allowed per site
 
    * `site_id` (FK -> `sites.id`)
 
    * `name` (VARCHAR)
 
-3. **`tag_mappings`** (Flyway `V1__registry.sql` + `V2__tag_alarm_thresholds.sql`; unique `(site_id, line_id, tag_code)`):
+   * `lifecycle` (`DRAFT` / `VERIFIED` / `ACTIVE`; V5)
+
+   * REST: `GET/POST /api/registry/lines`; `GET/PUT /api/registry/lines/{siteCode}/{lineCode}` (POST idempotent on `(siteCode,lineCode)`)
+
+3. **`tag_mappings`** (Flyway `V1__registry.sql` + `V2__tag_alarm_thresholds.sql` + V5; unique `(site_id, line_id, tag_code)`):
 
    * `id` (UUID PK)
 
@@ -230,7 +238,9 @@ smart-factory-platform/
 
    * `interlock_rule_key` (VARCHAR, nullable — references pluggable backend safety rule)
 
-   * REST: `GET /api/registry/tags?siteId&lineId&protocol&writable`; `POST /api/registry/tags` (201); `PUT /api/registry/tags/{id}` (siteId/lineId immutable); `DELETE /api/registry/tags/{id}` (204, missing → `TAG_NOT_FOUND`, evicts latest-cache; `telemetry_history` + `command_audit_logs` kept); errors `{code,message,fieldErrors}`
+   * `lifecycle` (`DRAFT` / `VERIFIED` / `ACTIVE`; V5). Live only when site+line+tag all `ACTIVE` (`RegistryLiveness` / `RegistryLivenessService` single gate: ingest, commands `TAG_NOT_ACTIVE`, latest/alarms/SSE `filterLive`). Site/line demotion uses `evictScope` (O(cached), no per-tag DB). Tag/batch demotion uses `reconcileCache`/`removeCacheEntry`. Batch may set `ACTIVE` when parents are live but never seeds latest-cache — next ingest sample fills it.
+
+   * REST: `GET /api/registry/tags?siteId&lineId&protocol&writable`; `POST /api/registry/tags` (201, default lifecycle `ACTIVE`); `PUT /api/registry/tags/{id}` (siteId/lineId immutable); `DELETE /api/registry/tags/{id}` (204, missing → `TAG_NOT_FOUND`, evicts latest-cache; `telemetry_history` + `command_audit_logs` kept); `POST /api/registry/tags/batch` JSON/CSV upsert (200 row summary; batch default lifecycle `DRAFT`; strict `minValue < maxValue`); errors `{code,message,fieldErrors}`
 
 4. **`command_audit_logs` (Immutable Append-Only)**:
 
@@ -457,7 +467,7 @@ Follow this exact sequence when scaffolding and implementing features:
 
 ### Milestone 3: Self-Serve Plant Onboarding, Config Sync & Operator Access
 
-* **Step M3.1 — Site, Line & Bulk Tag Registry APIs:** Drop `RegistrySeedRunner` and code edits to add a plant, line, or tag list. Idempotent `POST`/`GET`/`PUT` for Sites and Lines on natural keys (`siteCode`, `lineCode`; retries never duplicate). `POST /api/registry/tags/batch` JSON/CSV upsert; row validation (`minValue < maxValue`, `deadband >= 0`, valid protocol, non-empty `externalAddress`). Lifecycle `DRAFT` / `VERIFIED` / `ACTIVE` on sites, lines, and tags so partial tags do not alarm or write. Test: create site + line via API; import a multi-tag reactor batch with one invalid row (row-level errors); re-import stays idempotent.
+* **Step M3.1 — Site, Line & Bulk Tag Registry APIs (done):** Remove the dependency on `RegistrySeedRunner` and manual code changes to add a new plant, production line, or equipment tag list (`RegistrySeedRunner` remains the INDORE/PUNE demo baseline only). Idempotent `POST`/`GET`/`PUT` for Sites and Lines on natural keys (`siteCode`, `lineCode`; retries never create duplicates). `POST /api/registry/tags/batch` JSON/CSV upsert with row-level validation (`minValue < maxValue`, `deadband >= 0`, valid protocol, non-empty `externalAddress`). Lifecycle `DRAFT` / `VERIFIED` / `ACTIVE` on sites, lines, and tags so partial config does not alarm or write; live only when all three are `ACTIVE` (`RegistryLivenessService` gate for ingest, `TAG_NOT_ACTIVE` commands, latest/alarms/SSE; site/line demotion `evictScope`; batch may set `ACTIVE` but never seeds latest-cache). `ActorContext` is a pass-through on mutating registry methods in M3.1 — bootstrap admin + RBAC in M3.2, Spring Security in M4.2. Test: create site + line via API; import a multi-tag reactor batch with one invalid row (clear row-level errors); re-import stays idempotent.
 
 * **Step M3.2 — Actor Identity Abstraction & Bootstrap Admin Access:** `ActorContext` (user id, display name, role `VIEWER` | `OPERATOR` | `SUPERVISOR` | `ONBOARDING_ADMIN`) on registry and command services; `requestedBy` from actor context, not trusted raw input. First-run bootstrap admin (env config or setup token) so the onboarding engineer can provision the first site and users. Boundaries: `ONBOARDING_ADMIN` manages sites/lines/tags; `OPERATOR` / `SUPERVISOR` execute governed writes; `VIEWER` read-only. Full Spring Security / RBAC stays M4.2. Test: `VIEWER` or `OPERATOR` cannot mutate `/registry`; an `OPERATOR` write stores the server-derived identity in `command_audit_logs`.
 

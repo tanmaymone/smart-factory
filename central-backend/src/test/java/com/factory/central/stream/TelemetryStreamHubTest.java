@@ -6,9 +6,14 @@ import static org.awaitility.Awaitility.await;
 
 import com.factory.central.cache.AlarmDirection;
 import com.factory.central.cache.AlarmSeverity;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import com.factory.central.cache.InMemoryLatestTagCache;
 import com.factory.central.cache.LatestTagState;
 import com.factory.central.ingestion.LatestTagStateResponse;
+import com.factory.central.registry.RegistryLivenessService;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
 import java.time.Duration;
@@ -43,7 +48,13 @@ class TelemetryStreamHubTest {
         properties.setDispatchPoolSize(2);
         properties.setDispatchQueueCapacity(64);
         properties.setMaxSubscribers(32);
-        hub = new TelemetryStreamHub(properties, cache, meters);
+        hub = new TelemetryStreamHub(properties, cache, passthroughLiveness(), meters);
+    }
+
+    private static RegistryLivenessService passthroughLiveness() {
+        RegistryLivenessService liveness = mock(RegistryLivenessService.class);
+        when(liveness.filterLive(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+        return liveness;
     }
 
     @AfterEach
@@ -139,7 +150,7 @@ class TelemetryStreamHubTest {
         properties.setDispatchPoolSize(1);
         properties.setDispatchQueueCapacity(8);
         hub.shutdown();
-        hub = new TelemetryStreamHub(properties, cache, meters);
+        hub = new TelemetryStreamHub(properties, cache, passthroughLiveness(), meters);
 
         RecordingStreamSession session = new RecordingStreamSession();
         CountDownLatch entered = new CountDownLatch(1);
@@ -171,7 +182,7 @@ class TelemetryStreamHubTest {
         properties.setDispatchPoolSize(1);
         properties.setDispatchQueueCapacity(1);
         hub.shutdown();
-        hub = new TelemetryStreamHub(properties, cache, meters);
+        hub = new TelemetryStreamHub(properties, cache, passthroughLiveness(), meters);
 
         RecordingStreamSession session = new RecordingStreamSession();
         CountDownLatch entered = new CountDownLatch(1);
@@ -192,7 +203,7 @@ class TelemetryStreamHubTest {
     void thirtyThirdSubscribeThrowsAndLeavesListUnchanged() {
         properties.setMaxSubscribers(2);
         hub.shutdown();
-        hub = new TelemetryStreamHub(properties, cache, meters);
+        hub = new TelemetryStreamHub(properties, cache, passthroughLiveness(), meters);
 
         RecordingStreamSession first = new RecordingStreamSession();
         RecordingStreamSession second = new RecordingStreamSession();
@@ -212,7 +223,7 @@ class TelemetryStreamHubTest {
     void concurrentSubscribesNeverExceedMax() throws Exception {
         properties.setMaxSubscribers(8);
         hub.shutdown();
-        hub = new TelemetryStreamHub(properties, cache, meters);
+        hub = new TelemetryStreamHub(properties, cache, passthroughLiveness(), meters);
 
         ExecutorService pool = Executors.newFixedThreadPool(16);
         AtomicInteger accepted = new AtomicInteger();

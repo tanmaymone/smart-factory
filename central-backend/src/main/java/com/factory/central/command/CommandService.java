@@ -6,6 +6,7 @@ import com.factory.central.cache.LatestTagCache;
 import com.factory.central.cache.LatestTagState;
 import com.factory.central.mqtt.MqttPublishException;
 import com.factory.central.mqtt.MqttPublisher;
+import com.factory.central.registry.RegistryLivenessService;
 import com.factory.central.registry.TagMapping;
 import com.factory.central.stream.CommandUpdateEvent;
 import com.factory.central.stream.TelemetryStreamHub;
@@ -25,6 +26,7 @@ public class CommandService {
     private static final int MAX_PAGE_SIZE = 200;
     private final CommandTagResolver tagResolver;
     private final LatestTagCache latestTagCache;
+    private final RegistryLivenessService livenessService;
     private final InterlockEvaluator interlockEvaluator;
     private final CommandAuditWriter auditWriter;
     private final CommandAuditLogRepository auditLogRepository;
@@ -37,6 +39,7 @@ public class CommandService {
     public CommandService(
             CommandTagResolver tagResolver,
             LatestTagCache latestTagCache,
+            RegistryLivenessService livenessService,
             InterlockEvaluator interlockEvaluator,
             CommandAuditWriter auditWriter,
             CommandAuditLogRepository auditLogRepository,
@@ -47,6 +50,7 @@ public class CommandService {
             Clock clock) {
         this.tagResolver = tagResolver;
         this.latestTagCache = latestTagCache;
+        this.livenessService = livenessService;
         this.interlockEvaluator = interlockEvaluator;
         this.auditWriter = auditWriter;
         this.auditLogRepository = auditLogRepository;
@@ -76,6 +80,15 @@ public class CommandService {
 
         CommandTargetValue.Parsed target;
         try {
+            if (!livenessService.isLive(tag)) {
+                throw new CommandException(
+                        CommandErrorCode.TAG_NOT_ACTIVE,
+                        "Tag is not ACTIVE for site/line: " + tag.getTagCode(),
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        null,
+                        List.of(new CommandErrorResponse.FieldErrorDetail(
+                                "tagCode", "tag, line, and site must all be ACTIVE")));
+            }
             target = CommandTargetValue.parse(tag, request.targetValue());
             if (!tag.isWritable()) {
                 throw new CommandException(

@@ -5,6 +5,7 @@ public final class CommandErrorCode {
     public static final String VALIDATION_FAILED = "VALIDATION_FAILED";
     public static final String TAG_NOT_FOUND = "TAG_NOT_FOUND";
     public static final String TAG_NOT_WRITABLE = "TAG_NOT_WRITABLE";
+    public static final String TAG_NOT_ACTIVE = "TAG_NOT_ACTIVE";
     public static final String NODE_TYPE_MISMATCH = "NODE_TYPE_MISMATCH";
     public static final String NODE_NOT_WRITABLE = "NODE_NOT_WRITABLE";
     public static final String INVALID_VALUE = "INVALID_VALUE";

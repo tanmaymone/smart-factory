@@ -1,6 +1,6 @@
 package com.factory.central.registry;
 
-import com.factory.central.cache.LatestTagCache;
+import com.factory.central.access.ActorContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -13,15 +13,15 @@ public class TagRegistryService {
 
     private final TagMappingRepository tagMappingRepository;
     private final LineRepository lineRepository;
-    private final LatestTagCache latestTagCache;
+    private final RegistryLivenessService livenessService;
 
     public TagRegistryService(
             TagMappingRepository tagMappingRepository,
             LineRepository lineRepository,
-            LatestTagCache latestTagCache) {
+            RegistryLivenessService livenessService) {
         this.tagMappingRepository = tagMappingRepository;
         this.lineRepository = lineRepository;
-        this.latestTagCache = latestTagCache;
+        this.livenessService = livenessService;
     }
 
     @Transactional(readOnly = true)
@@ -32,7 +32,7 @@ public class TagRegistryService {
     }
 
     @Transactional
-    public TagMappingResponse create(TagMappingRequest request) {
+    public TagMappingResponse create(ActorContext actor, TagMappingRequest request) {
         requireLine(request.siteId(), request.lineId());
         requireUniqueTagCode(request.siteId(), request.lineId(), request.tagCode(), null);
         TagBoundsValidator.validate(request);
@@ -41,7 +41,7 @@ public class TagRegistryService {
     }
 
     @Transactional
-    public TagMappingResponse update(UUID id, TagMappingRequest request) {
+    public TagMappingResponse update(ActorContext actor, UUID id, TagMappingRequest request) {
         TagMapping existing = tagMappingRepository
                 .findById(id)
                 .orElseThrow(() -> new RegistryException(
@@ -70,12 +70,23 @@ public class TagRegistryService {
         requireUniqueTagCode(existing.getSiteId(), existing.getLineId(), request.tagCode(), existing.getId());
         TagBoundsValidator.validate(request);
 
+        boolean wasLive = livenessService.isLive(existing);
+        String previousCode = existing.getTagCode();
         existing.apply(request);
-        return TagMappingResponse.from(tagMappingRepository.save(existing));
+        TagMapping saved = tagMappingRepository.save(existing);
+        if (!previousCode.equals(saved.getTagCode())) {
+            livenessService.removeCacheEntry(saved.getSiteId(), saved.getLineId(), previousCode);
+        }
+        if (wasLive && !livenessService.isLive(saved)) {
+            livenessService.removeCacheEntry(saved.getSiteId(), saved.getLineId(), saved.getTagCode());
+        } else {
+            livenessService.reconcileCache(saved.getSiteId(), saved.getLineId(), saved.getTagCode());
+        }
+        return TagMappingResponse.from(saved);
     }
 
     @Transactional
-    public void delete(UUID id) {
+    public void delete(ActorContext actor, UUID id) {
         TagMapping existing = tagMappingRepository
                 .findById(id)
                 .orElseThrow(() -> new RegistryException(
@@ -83,7 +94,7 @@ public class TagRegistryService {
                         "Tag mapping not found: " + id,
                         HttpStatus.NOT_FOUND));
         tagMappingRepository.delete(existing);
-        latestTagCache.remove(existing.getSiteId(), existing.getLineId(), existing.getTagCode());
+        livenessService.removeCacheEntry(existing.getSiteId(), existing.getLineId(), existing.getTagCode());
     }
 
     private void requireLine(String siteId, String lineId) {

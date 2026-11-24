@@ -2,6 +2,7 @@ package com.factory.central.ingestion;
 
 import com.factory.central.cache.LatestTagCache;
 import com.factory.central.cache.LatestTagState;
+import com.factory.central.registry.RegistryLivenessService;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -17,22 +18,27 @@ public class TelemetryQueryService {
     private static final int MAX_LIMIT = 1000;
 
     private final LatestTagCache latestTagCache;
+    private final RegistryLivenessService livenessService;
     private final TelemetryHistoryRepository historyRepository;
     private final Clock clock;
 
     public TelemetryQueryService(
-            LatestTagCache latestTagCache, TelemetryHistoryRepository historyRepository, Clock clock) {
+            LatestTagCache latestTagCache,
+            RegistryLivenessService livenessService,
+            TelemetryHistoryRepository historyRepository,
+            Clock clock) {
         this.latestTagCache = latestTagCache;
+        this.livenessService = livenessService;
         this.historyRepository = historyRepository;
         this.clock = clock;
     }
 
     public List<LatestTagState> latest(String siteId, String lineId, String tagCode) {
-        return latestTagCache.find(siteId, lineId, tagCode);
+        return livenessService.filterLive(latestTagCache.find(siteId, lineId, tagCode));
     }
 
     public List<LatestTagState> alarms(String siteId, String lineId) {
-        return latestTagCache.findAlarms(siteId, lineId);
+        return livenessService.filterLive(latestTagCache.findAlarms(siteId, lineId));
     }
 
     public List<TelemetryHistoryRow> history(

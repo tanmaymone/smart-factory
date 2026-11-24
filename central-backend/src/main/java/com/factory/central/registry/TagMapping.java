@@ -73,6 +73,10 @@ public class TagMapping {
     @Column(name = "interlock_rule_key", length = 128)
     private String interlockRuleKey;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "lifecycle", length = 32, nullable = false)
+    private RegistryLifecycle lifecycle;
+
     protected TagMapping() {
     }
 
@@ -96,6 +100,50 @@ public class TagMapping {
             Double criticalLow,
             Double criticalHigh,
             String interlockRuleKey) {
+        this(
+                id,
+                siteId,
+                lineId,
+                tagCode,
+                description,
+                protocol,
+                endpointUrl,
+                externalAddress,
+                dataType,
+                unit,
+                writable,
+                minValue,
+                maxValue,
+                deadband,
+                warningLow,
+                warningHigh,
+                criticalLow,
+                criticalHigh,
+                interlockRuleKey,
+                RegistryLifecycle.ACTIVE);
+    }
+
+    public TagMapping(
+            UUID id,
+            String siteId,
+            String lineId,
+            String tagCode,
+            String description,
+            Protocol protocol,
+            String endpointUrl,
+            String externalAddress,
+            TagDataType dataType,
+            String unit,
+            boolean writable,
+            Double minValue,
+            Double maxValue,
+            double deadband,
+            Double warningLow,
+            Double warningHigh,
+            Double criticalLow,
+            Double criticalHigh,
+            String interlockRuleKey,
+            RegistryLifecycle lifecycle) {
         this.id = id;
         this.siteId = siteId;
         this.lineId = lineId;
@@ -115,9 +163,12 @@ public class TagMapping {
         this.criticalLow = criticalLow;
         this.criticalHigh = criticalHigh;
         this.interlockRuleKey = interlockRuleKey;
+        this.lifecycle = lifecycle == null ? RegistryLifecycle.ACTIVE : lifecycle;
     }
 
     public static TagMapping create(UUID id, TagMappingRequest request) {
+        RegistryLifecycle lifecycle =
+                request.lifecycle() == null ? RegistryLifecycle.ACTIVE : request.lifecycle();
         return new TagMapping(
                 id,
                 request.siteId(),
@@ -137,7 +188,8 @@ public class TagMapping {
                 request.warningHigh(),
                 request.criticalLow(),
                 request.criticalHigh(),
-                request.interlockRuleKey());
+                request.interlockRuleKey(),
+                lifecycle);
     }
 
     public void apply(TagMappingRequest request) {
@@ -157,6 +209,46 @@ public class TagMapping {
         this.criticalLow = request.criticalLow();
         this.criticalHigh = request.criticalHigh();
         this.interlockRuleKey = request.interlockRuleKey();
+        if (request.lifecycle() != null) {
+            this.lifecycle = request.lifecycle();
+        }
+    }
+
+    public void applyBatch(
+            String description,
+            Protocol protocol,
+            String endpointUrl,
+            String externalAddress,
+            TagDataType dataType,
+            String unit,
+            boolean writable,
+            Double minValue,
+            Double maxValue,
+            double deadband,
+            Double warningLow,
+            Double warningHigh,
+            Double criticalLow,
+            Double criticalHigh,
+            String interlockRuleKey,
+            RegistryLifecycle lifecycle) {
+        this.description = description;
+        this.protocol = protocol;
+        this.endpointUrl = endpointUrl;
+        this.externalAddress = externalAddress;
+        this.dataType = dataType;
+        this.unit = unit;
+        this.writable = writable;
+        this.minValue = minValue;
+        this.maxValue = maxValue;
+        this.deadband = deadband;
+        this.warningLow = warningLow;
+        this.warningHigh = warningHigh;
+        this.criticalLow = criticalLow;
+        this.criticalHigh = criticalHigh;
+        this.interlockRuleKey = interlockRuleKey;
+        if (lifecycle != null) {
+            this.lifecycle = lifecycle;
+        }
     }
 
     public boolean reconcileSeed(
@@ -295,5 +387,9 @@ public class TagMapping {
 
     public String getInterlockRuleKey() {
         return interlockRuleKey;
+    }
+
+    public RegistryLifecycle getLifecycle() {
+        return lifecycle;
     }
 }

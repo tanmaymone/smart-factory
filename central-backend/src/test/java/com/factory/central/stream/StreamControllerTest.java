@@ -6,7 +6,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import com.factory.central.cache.InMemoryLatestTagCache;
+import com.factory.central.registry.RegistryLivenessService;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,7 +32,10 @@ class StreamControllerTest {
     void setUp() {
         StreamProperties properties = new StreamProperties();
         properties.setMaxSubscribers(1);
-        hub = new TelemetryStreamHub(properties, new InMemoryLatestTagCache(), new SimpleMeterRegistry());
+        RegistryLivenessService liveness = mock(RegistryLivenessService.class);
+        when(liveness.filterLive(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+        hub = new TelemetryStreamHub(
+                properties, new InMemoryLatestTagCache(), liveness, new SimpleMeterRegistry());
         mockMvc = MockMvcBuilders.standaloneSetup(new StreamController(hub))
                 .setControllerAdvice(new StreamExceptionHandler(new com.fasterxml.jackson.databind.ObjectMapper()))
                 .build();

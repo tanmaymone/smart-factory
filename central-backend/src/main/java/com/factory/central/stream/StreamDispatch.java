@@ -3,6 +3,7 @@ package com.factory.central.stream;
 import com.factory.central.cache.LatestTagCache;
 import com.factory.central.cache.LatestTagState;
 import com.factory.central.ingestion.LatestTagStateResponse;
+import com.factory.central.registry.RegistryLivenessService;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -11,11 +12,17 @@ import java.util.function.Consumer;
 final class StreamDispatch {
 
     private final LatestTagCache latestTagCache;
+    private final RegistryLivenessService livenessService;
     private final AtomicLong eventIds;
     private final Consumer<StreamSubscription> remove;
 
-    StreamDispatch(LatestTagCache latestTagCache, AtomicLong eventIds, Consumer<StreamSubscription> remove) {
+    StreamDispatch(
+            LatestTagCache latestTagCache,
+            RegistryLivenessService livenessService,
+            AtomicLong eventIds,
+            Consumer<StreamSubscription> remove) {
         this.latestTagCache = latestTagCache;
+        this.livenessService = livenessService;
         this.eventIds = eventIds;
         this.remove = remove;
     }
@@ -55,11 +62,13 @@ final class StreamDispatch {
 
     private void writeSnapshot(StreamSession session, StreamSubscription subscription) throws IOException {
         session.sendComment("connected");
-        List<LatestTagState> latest = latestTagCache.find(subscription.siteId(), subscription.lineId(), null);
+        List<LatestTagState> latest = livenessService.filterLive(
+                latestTagCache.find(subscription.siteId(), subscription.lineId(), null));
         for (LatestTagState state : latest) {
             sendTag(session, state);
         }
-        List<LatestTagState> alarms = latestTagCache.findAlarms(subscription.siteId(), subscription.lineId());
+        List<LatestTagState> alarms = livenessService.filterLive(
+                latestTagCache.findAlarms(subscription.siteId(), subscription.lineId()));
         for (LatestTagState state : alarms) {
             sendAlarm(session, state);
         }
