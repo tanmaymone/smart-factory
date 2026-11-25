@@ -116,6 +116,7 @@
     .pill.bad { background: rgba(244, 63, 94, 0.15); color: var(--rose); }
     .pill.warn { background: rgba(251, 191, 36, 0.15); color: var(--amber); }
     .pill.held { background: rgba(34, 211, 238, 0.12); color: var(--cyan); }
+    .pill.idle { background: rgba(148, 163, 184, 0.12); color: var(--muted); }
     .banner {
       display: none;
       margin: 0 0 0.75rem;
@@ -179,6 +180,20 @@
       <div class="row"><span class="label">Last flush</span><span id="mqttFlush" class="mono">—</span></div>
     </section>
 
+    <section class="card span-2" id="configCard">
+      <h2>Central Config Sync</h2>
+      <p class="caption">Site-scoped manifest from <span class="mono">GET /api/edge/{siteId}/config</span>. A rejected tag is skipped; the rest of the line stays live.</p>
+      <div class="row"><span class="label">Sync</span><span id="cfgSync">—</span></div>
+      <div class="row"><span class="label">Site</span><span id="cfgSite" class="mono">—</span></div>
+      <div class="row"><span class="label">Source</span><span id="cfgSource" class="mono">—</span></div>
+      <div class="row"><span class="label">Fetched / applied version</span><span id="cfgVersions" class="mono">—</span></div>
+      <div class="row"><span class="label">Active tags</span><span id="cfgActive" class="mono">—</span></div>
+      <div class="row"><span class="label">Last synced</span><span id="cfgSynced" class="mono">—</span></div>
+      <div class="row"><span class="label">Last applied</span><span id="cfgApplied" class="mono">—</span></div>
+      <div class="row"><span class="label">Last error</span><span id="cfgError" class="mono">—</span></div>
+      <div id="cfgRejected"></div>
+    </section>
+
     <section class="card span-2">
       <h2>Active Tags &amp; Deadband</h2>
       <p class="caption">Last observed updates on every OPC sample, including deadband holds. Held readings do not enter the offline buffer — use Buffered / Last flush for publish state.</p>
@@ -213,12 +228,18 @@
 
     function phasePill(phase) {
       if (phase === "UP") return pill(dash(phase), "ok");
+      if (phase === "IDLE") return pill(dash(phase), "idle");
       if (phase === "STARTING" || phase === "BACKOFF") return pill(dash(phase), "warn");
       return pill(dash(phase), "bad");
     }
 
-    function updateOpcBanner(status, endpoint) {
+    function updateOpcBanner(status, endpoint, phase) {
       const banner = document.getElementById("opcBanner");
+      if (phase === "IDLE") {
+        banner.classList.remove("visible");
+        banner.textContent = "";
+        return;
+      }
       if (status === "CONNECTED") {
         banner.classList.remove("visible");
         banner.textContent = "";
@@ -241,11 +262,11 @@
     function renderTags(tags) {
       const el = document.getElementById("tagsTable");
       if (!tags || tags.length === 0) {
-        el.innerHTML = '<p class="empty">No tags configured</p>';
+        el.innerHTML = '<p class="empty">No active tags — IDLE until the central manifest lands</p>';
         return;
       }
       let html = "<table><thead><tr>"
-        + "<th>Site</th><th>Line</th><th>Tag</th><th>Node</th><th>Deadband</th>"
+        + "<th>Site</th><th>Line</th><th>Tag</th><th>Node</th><th>Deadband</th><th>Writable</th>"
         + "<th>Last observed</th><th>Quality</th><th>Observed at</th><th>Emit</th>"
         + "</tr></thead><tbody>";
       for (const t of tags) {
@@ -258,6 +279,7 @@
           + "<td class='mono'>" + dash(t.tagCode) + "</td>"
           + "<td class='mono'>" + dash(t.nodeId) + "</td>"
           + "<td class='mono'>" + dash(t.deadband) + "</td>"
+          + "<td>" + (t.writable ? pill("RW", "ok") : pill("RO", "idle")) + "</td>"
           + "<td class='mono'>" + dash(t.value) + "</td>"
           + "<td class='mono'>" + dash(t.quality) + "</td>"
           + "<td class='mono'>" + fmtInstant(t.observedAt) + "</td>"
@@ -296,6 +318,40 @@
       el.innerHTML = html;
     }
 
+    function renderConfig(cfg) {
+      const c = cfg || {};
+      document.getElementById("cfgSync").innerHTML = c.syncEnabled
+        ? pill("ENABLED", "ok")
+        : pill("STATIC YAML", "idle");
+      document.getElementById("cfgSite").textContent = dash(c.siteId);
+      document.getElementById("cfgSource").textContent = dash(c.source);
+      document.getElementById("cfgVersions").textContent =
+        dash(c.fetchedVersion) + " / " + dash(c.appliedVersion);
+      document.getElementById("cfgActive").textContent =
+        dash(c.activeTagCount) + " active · " + dash(c.rejectedCount) + " rejected";
+      document.getElementById("cfgSynced").textContent = fmtInstant(c.lastSyncedAt);
+      document.getElementById("cfgApplied").textContent = fmtInstant(c.lastAppliedAt);
+      document.getElementById("cfgError").textContent = dash(c.lastError);
+
+      const el = document.getElementById("cfgRejected");
+      const rows = c.rejected || [];
+      if (rows.length === 0) {
+        el.innerHTML = "";
+        return;
+      }
+      let html = "<table><thead><tr><th>Line</th><th>Tag</th><th>Address</th><th>Reason</th>"
+        + "</tr></thead><tbody>";
+      for (const r of rows) {
+        html += "<tr>"
+          + "<td class='mono'>" + dash(r.lineId) + "</td>"
+          + "<td class='mono'>" + dash(r.tagCode) + "</td>"
+          + "<td class='mono'>" + dash(r.externalAddress) + "</td>"
+          + "<td class='mono'>" + dash(r.reason) + "</td>"
+          + "</tr>";
+      }
+      el.innerHTML = html + "</tbody></table>";
+    }
+
     function applySnapshot(data) {
       const o = data.opcua || {};
       const m = data.mqtt || {};
@@ -304,13 +360,14 @@
       document.getElementById("opcPhase").innerHTML = phasePill(o.phase);
       document.getElementById("opcError").textContent = dash(o.lastError);
       document.getElementById("opcHeartbeat").textContent = fmtInstant(o.lastHeartbeatAt);
-      updateOpcBanner(o.status, o.endpointUrl);
+      updateOpcBanner(o.status, o.endpointUrl, o.phase);
       document.getElementById("mqttBroker").textContent = dash(m.brokerUrl);
       document.getElementById("mqttTelemetry").innerHTML = statusPill(m.telemetryStatus);
       document.getElementById("mqttCommand").innerHTML = boolPill(!!m.commandSubscriberConnected);
       document.getElementById("mqttBuffered").textContent =
         m.bufferedCount === null || m.bufferedCount === undefined ? DASH : String(m.bufferedCount);
       document.getElementById("mqttFlush").textContent = fmtInstant(m.lastPublishAt);
+      renderConfig(data.config);
       renderTags(data.tags);
       renderCommands(data.commands);
     }

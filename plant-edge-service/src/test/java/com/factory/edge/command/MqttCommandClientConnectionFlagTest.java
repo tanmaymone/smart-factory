@@ -16,7 +16,8 @@ class MqttCommandClientConnectionFlagTest {
         properties.setBrokerUrl("tcp://127.0.0.1:1");
         properties.setClientId("edge-cmd-flag-test");
 
-        MqttCommandClient client = new MqttCommandClient(properties);
+        MqttCommandClient client =
+                new MqttCommandClient(properties, "site/INDORE/line/+/commands");
         try {
             assertThat(client.isConnected()).isFalse();
 

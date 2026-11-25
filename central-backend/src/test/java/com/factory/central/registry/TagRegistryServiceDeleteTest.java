@@ -45,7 +45,8 @@ class TagRegistryServiceDeleteTest {
                 tagMappingRepository,
                 lineRepository,
                 new RegistryLivenessService(
-                        siteRepository, lineRepository, tagMappingRepository, latestTagCache));
+                        siteRepository, lineRepository, tagMappingRepository, latestTagCache),
+                org.mockito.Mockito.mock(SiteConfigRevisionService.class));
     }
 
     @Test

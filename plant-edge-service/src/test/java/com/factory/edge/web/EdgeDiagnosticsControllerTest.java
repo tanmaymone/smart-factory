@@ -47,6 +47,21 @@ class EdgeDiagnosticsControllerTest {
                                         false,
                                         2,
                                         Instant.parse("2026-01-15T10:00:00Z")),
+                                new EdgeStatusSnapshot.ConfigStatus(
+                                        true,
+                                        "INDORE",
+                                        "CENTRAL",
+                                        7L,
+                                        "abc123",
+                                        Instant.parse("2026-01-15T10:00:00Z"),
+                                        Instant.parse("2026-01-15T10:00:00Z"),
+                                        null,
+                                        7L,
+                                        "abc123",
+                                        Instant.parse("2026-01-15T10:00:00Z"),
+                                        1,
+                                        0,
+                                        List.of()),
                                 List.of(
                                         new EdgeStatusSnapshot.TagStatus(
                                                 "INDORE",
@@ -54,6 +69,7 @@ class EdgeDiagnosticsControllerTest {
                                                 "VALVE_101_POS",
                                                 "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
                                                 0.5,
+                                                true,
                                                 42,
                                                 "GOOD",
                                                 Instant.parse("2026-01-15T10:00:01Z"),
@@ -67,7 +83,12 @@ class EdgeDiagnosticsControllerTest {
                 .andExpect(jsonPath("$.mqtt.bufferedCount").value(2))
                 .andExpect(jsonPath("$.mqtt.commandSubscriberConnected").value(false))
                 .andExpect(jsonPath("$.tags[0].value").value(42))
+                .andExpect(jsonPath("$.tags[0].writable").value(true))
                 .andExpect(jsonPath("$.tags[0].emitted").value(false))
+                .andExpect(jsonPath("$.config.syncEnabled").value(true))
+                .andExpect(jsonPath("$.config.siteId").value("INDORE"))
+                .andExpect(jsonPath("$.config.appliedVersion").value(7))
+                .andExpect(jsonPath("$.config.rejected").isArray())
                 .andExpect(jsonPath("$.commands").isArray());
     }
 
@@ -83,6 +104,7 @@ class EdgeDiagnosticsControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("Plant Edge Diagnostics")))
                 .andExpect(content().string(Matchers.containsString("Last observed")))
+                .andExpect(content().string(Matchers.containsString("Central Config Sync")))
                 .andExpect(content().string(Matchers.containsString("/api/edge/status")))
                 .andExpect(content().string(Matchers.containsString("/smart-factory-logo.png")));
 

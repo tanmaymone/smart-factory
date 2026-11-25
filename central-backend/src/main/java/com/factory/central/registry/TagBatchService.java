@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -24,14 +25,17 @@ public class TagBatchService {
     private final TagMappingRepository tagMappingRepository;
     private final LineRepository lineRepository;
     private final RegistryLivenessService livenessService;
+    private final SiteConfigRevisionService revisionService;
 
     public TagBatchService(
             TagMappingRepository tagMappingRepository,
             LineRepository lineRepository,
-            RegistryLivenessService livenessService) {
+            RegistryLivenessService livenessService,
+            SiteConfigRevisionService revisionService) {
         this.tagMappingRepository = tagMappingRepository;
         this.lineRepository = lineRepository;
         this.livenessService = livenessService;
+        this.revisionService = revisionService;
     }
 
     @Transactional
@@ -42,6 +46,7 @@ public class TagBatchService {
         int failed = 0;
         Map<String, Boolean> priorLive = new HashMap<>();
         Set<String> touchedKeys = new HashSet<>();
+        Set<String> touchedSites = new TreeSet<>();
 
         int index = 0;
         for (TagBatchRowInput input : rows) {
@@ -105,6 +110,7 @@ public class TagBatchService {
                     TagMapping saved = tagMappingRepository.save(existing);
                     updated++;
                     touchedKeys.add(key);
+                    touchedSites.add(saved.getSiteId());
                     results.add(TagBatchRowResult.of(
                             index,
                             input.sourceLine(),
@@ -140,6 +146,7 @@ public class TagBatchService {
                     TagMapping saved = tagMappingRepository.save(createdTag);
                     created++;
                     touchedKeys.add(key);
+                    touchedSites.add(saved.getSiteId());
                     results.add(TagBatchRowResult.of(
                             index,
                             input.sourceLine(),
@@ -162,6 +169,8 @@ public class TagBatchService {
                                 "Tag code already exists for site/line"))));
             }
         }
+
+        revisionService.bumpAll(touchedSites);
 
         // Cache policy: batch never seeds latest-state. Demotion clears; promotion to
         // live (tag+line+site ACTIVE) leaves cache empty so the next ingest sample fills it.

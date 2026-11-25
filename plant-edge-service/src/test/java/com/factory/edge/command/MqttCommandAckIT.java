@@ -3,6 +3,7 @@ package com.factory.edge.command;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import com.factory.edge.config.EdgeConfigProperties;
 import com.factory.edge.mqtt.MqttProperties;
 import com.factory.edge.opcua.MiloOpcUaSession;
 import com.factory.edge.opcua.OpcUaProperties;
@@ -64,15 +65,16 @@ class MqttCommandAckIT {
             try {
                 session.start(opc.getTags(), reading -> {}, generation -> {});
                 OpcUaCommandWriter writer = new OpcUaCommandWriter(session);
+                EdgeConfigProperties edgeConfig = new EdgeConfigProperties();
                 CommandDispatcher dispatcher =
-                        new CommandDispatcher(opc, writer, history, objectMapper);
+                        new CommandDispatcher(opc, edgeConfig, writer, history, objectMapper);
 
                 MqttProperties mqtt = new MqttProperties();
                 mqtt.setBrokerUrl(broker);
                 mqtt.setClientId("edge-cmd-it-" + UUID.randomUUID());
                 mqtt.setReconnectInitialMs(200);
                 mqtt.setReconnectMaxMs(500);
-                link = new MqttCommandLink(mqtt, dispatcher, history, objectMapper);
+                link = new MqttCommandLink(mqtt, edgeConfig, dispatcher, history, objectMapper);
 
                 CopyOnWriteArrayList<JsonNode> acks = new CopyOnWriteArrayList<>();
                 subscriber = new MqttClient(broker, "ack-sub-" + UUID.randomUUID());

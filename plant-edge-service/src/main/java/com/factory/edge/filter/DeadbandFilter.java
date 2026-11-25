@@ -4,6 +4,7 @@ import com.factory.edge.opcua.OpcUaProperties;
 import com.factory.edge.opcua.QualityGate;
 import com.factory.edge.opcua.TagReading;
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,10 +20,15 @@ public final class DeadbandFilter {
 
     private static final Logger log = LoggerFactory.getLogger(DeadbandFilter.class);
 
-    private final Map<String, BigDecimal> deadbands;
+    private volatile Map<String, BigDecimal> deadbands;
     private final ConcurrentHashMap<String, TagState> states = new ConcurrentHashMap<>();
 
     public DeadbandFilter(List<OpcUaProperties.TagConfig> tags) {
+        this.deadbands = bandsOf(tags);
+    }
+
+    /** Builds the {@code siteId|lineId|tagCode} to band map, rejecting negative bands. */
+    public static Map<String, BigDecimal> bandsOf(List<OpcUaProperties.TagConfig> tags) {
         Map<String, BigDecimal> bands = new HashMap<>();
         if (tags != null) {
             for (OpcUaProperties.TagConfig tag : tags) {
@@ -41,7 +47,25 @@ public final class DeadbandFilter {
                 bands.put(key(tag.getSiteId(), tag.getLineId(), tag.getTagCode()), BigDecimal.valueOf(band));
             }
         }
-        this.deadbands = Map.copyOf(bands);
+        return Map.copyOf(bands);
+    }
+
+    /** Swaps the band table. Per-tag state survives so unchanged tags keep their baseline. */
+    public void replaceBands(Map<String, BigDecimal> bands) {
+        this.deadbands = bands == null ? Map.of() : Map.copyOf(bands);
+    }
+
+    /** Drops baselines for new or re-addressed tags so their next reading always emits. */
+    public void evict(Collection<String> keys) {
+        if (keys == null) {
+            return;
+        }
+        keys.forEach(states::remove);
+    }
+
+    /** Drops every baseline — used when the whole tag set is replaced or the edge goes IDLE. */
+    public void clearAll() {
+        states.clear();
     }
 
     /**

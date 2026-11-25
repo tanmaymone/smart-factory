@@ -50,7 +50,11 @@ class TagBatchServiceTest {
         cache = new InMemoryLatestTagCache();
         livenessService = new RegistryLivenessService(
                 siteRepository, lineRepository, tagMappingRepository, cache);
-        service = new TagBatchService(tagMappingRepository, lineRepository, livenessService);
+        service = new TagBatchService(
+                tagMappingRepository,
+                lineRepository,
+                livenessService,
+                org.mockito.Mockito.mock(SiteConfigRevisionService.class));
         when(lineRepository.findById(any())).thenReturn(Optional.of(new Line("NASHIK", "LINE-01", "Reactor")));
         when(siteRepository.findById("NASHIK"))
                 .thenReturn(Optional.of(new Site(

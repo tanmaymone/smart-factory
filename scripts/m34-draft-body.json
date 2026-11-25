@@ -1,0 +1,1 @@
+{"siteId":"INDORE","lineId":"LINE-01","tagCode":"M34_SIGNOFF_01","description":"M3.4 manual sign-off counter read","protocol":"OPC_UA","endpointUrl":"opc.tcp://localhost:53530/OPCUA/SimulationServer","externalAddress":"nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001","dataType":"INT","writable":false,"deadband":0.0,"lifecycle":"DRAFT"}

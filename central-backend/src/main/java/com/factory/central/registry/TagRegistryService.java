@@ -14,14 +14,17 @@ public class TagRegistryService {
     private final TagMappingRepository tagMappingRepository;
     private final LineRepository lineRepository;
     private final RegistryLivenessService livenessService;
+    private final SiteConfigRevisionService revisionService;
 
     public TagRegistryService(
             TagMappingRepository tagMappingRepository,
             LineRepository lineRepository,
-            RegistryLivenessService livenessService) {
+            RegistryLivenessService livenessService,
+            SiteConfigRevisionService revisionService) {
         this.tagMappingRepository = tagMappingRepository;
         this.lineRepository = lineRepository;
         this.livenessService = livenessService;
+        this.revisionService = revisionService;
     }
 
     @Transactional(readOnly = true)
@@ -37,6 +40,7 @@ public class TagRegistryService {
         requireUniqueTagCode(request.siteId(), request.lineId(), request.tagCode(), null);
         TagBoundsValidator.validate(request);
         TagMapping saved = tagMappingRepository.save(TagMapping.create(UUID.randomUUID(), request));
+        revisionService.bump(saved.getSiteId());
         return TagMappingResponse.from(saved);
     }
 
@@ -74,6 +78,7 @@ public class TagRegistryService {
         String previousCode = existing.getTagCode();
         existing.apply(request);
         TagMapping saved = tagMappingRepository.save(existing);
+        revisionService.bump(saved.getSiteId());
         if (!previousCode.equals(saved.getTagCode())) {
             livenessService.removeCacheEntry(saved.getSiteId(), saved.getLineId(), previousCode);
         }
@@ -94,6 +99,7 @@ public class TagRegistryService {
                         "Tag mapping not found: " + id,
                         HttpStatus.NOT_FOUND));
         tagMappingRepository.delete(existing);
+        revisionService.bump(existing.getSiteId());
         livenessService.removeCacheEntry(existing.getSiteId(), existing.getLineId(), existing.getTagCode());
     }
 

@@ -1,6 +1,7 @@
 package com.factory.central.registry;
 
 import java.util.List;
+import java.util.TreeSet;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,32 +18,37 @@ public class RegistrySeedRunner implements CommandLineRunner {
     private final LineRepository lineRepository;
     private final TagMappingRepository tagMappingRepository;
     private final RegistryProperties registryProperties;
+    private final SiteConfigRevisionService revisionService;
 
     public RegistrySeedRunner(
             SiteRepository siteRepository,
             LineRepository lineRepository,
             TagMappingRepository tagMappingRepository,
-            RegistryProperties registryProperties) {
+            RegistryProperties registryProperties,
+            SiteConfigRevisionService revisionService) {
         this.siteRepository = siteRepository;
         this.lineRepository = lineRepository;
         this.tagMappingRepository = tagMappingRepository;
         this.registryProperties = registryProperties;
+        this.revisionService = revisionService;
     }
 
     @Override
     @Transactional
     public void run(String... args) {
+        TreeSet<String> bumpedSites = new TreeSet<>();
         ensureSite(new Site("INDORE", "Indore Plant", "Asia/Kolkata", SiteStatus.ONLINE));
         ensureSite(new Site("PUNE", "Pune Plant", "Asia/Kolkata", SiteStatus.ONLINE));
 
-        ensureLine(new Line("INDORE", "LINE-01", "Reactor Line 1"));
-        ensureLine(new Line("INDORE", "LINE-02", "Packaging Line"));
-        ensureLine(new Line("PUNE", "LINE-01", "Reactor Line 1"));
+        ensureLine(new Line("INDORE", "LINE-01", "Reactor Line 1"), bumpedSites);
+        ensureLine(new Line("INDORE", "LINE-02", "Packaging Line"), bumpedSites);
+        ensureLine(new Line("PUNE", "LINE-01", "Reactor Line 1"), bumpedSites);
 
         String endpoint = registryProperties.getOpcEndpointUrl();
         for (TagSeed seed : sampleTags()) {
-            ensureTag(seed, endpoint);
+            ensureTag(seed, endpoint, bumpedSites);
         }
+        revisionService.bumpAll(bumpedSites);
 
         log.info(
                 "Registry seed complete: sites={}, lines={}, tags={}",
@@ -54,17 +60,20 @@ public class RegistrySeedRunner implements CommandLineRunner {
     private void ensureSite(Site site) {
         if (siteRepository.findById(site.getId()).isEmpty()) {
             siteRepository.save(site);
+            // Match SiteRegistryService.create: seed version 1 only; line/tag inserts bump.
+            revisionService.seedIfAbsent(site.getId());
         }
     }
 
-    private void ensureLine(Line line) {
+    private void ensureLine(Line line, TreeSet<String> bumpedSites) {
         LineId id = new LineId(line.getSiteId(), line.getLineId());
         if (lineRepository.findById(id).isEmpty()) {
             lineRepository.save(line);
+            bumpedSites.add(line.getSiteId());
         }
     }
 
-    private void ensureTag(TagSeed seed, String endpointUrl) {
+    private void ensureTag(TagSeed seed, String endpointUrl, TreeSet<String> bumpedSites) {
         tagMappingRepository
                 .findBySiteIdAndLineIdAndTagCode(seed.siteId(), seed.lineId(), seed.tagCode())
                 .ifPresentOrElse(
@@ -77,9 +86,13 @@ public class RegistrySeedRunner implements CommandLineRunner {
                                     seed.criticalHigh(),
                                     seed.externalAddress())) {
                                 tagMappingRepository.save(existing);
+                                bumpedSites.add(seed.siteId());
                             }
                         },
-                        () -> tagMappingRepository.save(seed.toEntity(endpointUrl)));
+                        () -> {
+                            tagMappingRepository.save(seed.toEntity(endpointUrl));
+                            bumpedSites.add(seed.siteId());
+                        });
     }
 
     private static List<TagSeed> sampleTags() {

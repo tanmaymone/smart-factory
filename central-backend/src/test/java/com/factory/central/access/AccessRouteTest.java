@@ -12,6 +12,8 @@ class AccessRouteTest {
     @Test
     void classifiesOpenAndGatedRoutes() {
         assertThat(AccessRoute.classify("GET", "/api/registry/sites")).contains(AccessAction.OPEN);
+        assertThat(AccessRoute.classify("GET", "/api/edge/INDORE/config")).contains(AccessAction.OPEN);
+        assertThat(AccessRoute.classify("HEAD", "/api/edge/INDORE/config")).contains(AccessAction.OPEN);
         assertThat(AccessRoute.classify("GET", "/api/commands/audit")).contains(AccessAction.OPEN);
         assertThat(AccessRoute.classify("POST", "/api/telemetry/ingest")).contains(AccessAction.OPEN);
         assertThat(AccessRoute.classify("GET", "/api/stream/telemetry")).contains(AccessAction.OPEN);
@@ -45,5 +47,8 @@ class AccessRouteTest {
         assertThat(AccessRoute.classify("GET", "/api/onboarding/probe")).isEqualTo(Optional.empty());
         assertThat(AccessRoute.classify("POST", "/api/onboarding")).isEqualTo(Optional.empty());
         assertThat(AccessRoute.classify("POST", "/api/onboarding/probe/extra")).isEqualTo(Optional.empty());
+        assertThat(AccessRoute.classify("GET", "/api/edge/config")).isEqualTo(Optional.empty());
+        assertThat(AccessRoute.classify("GET", "/api/edge/INDORE/config/extra")).isEqualTo(Optional.empty());
+        assertThat(AccessRoute.classify("POST", "/api/edge/INDORE/config")).isEqualTo(Optional.empty());
     }
 }

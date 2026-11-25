@@ -9,6 +9,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.factory.edge.config.EdgeConfigProperties;
 import com.factory.edge.opcua.OpcUaProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,7 +50,12 @@ class CommandDispatcherTest {
         history = new EdgeCommandHistory();
         dispatcher =
                 new CommandDispatcher(
-                        properties, writer, history, mapper, Clock.fixed(NOW, ZoneOffset.UTC));
+                        properties,
+                        new EdgeConfigProperties(),
+                        writer,
+                        history,
+                        mapper,
+                        Clock.fixed(NOW, ZoneOffset.UTC));
         dispatcher.bindAckSink(
                 (topic, payload) -> {
                     published.add(topic + "|" + payload);
@@ -167,6 +173,91 @@ class CommandDispatcherTest {
                 .contains("\"observedValue\":50.0")
                 .contains("\"status\":\"ACKED\"");
         assertThat(history.find("c1")).isPresent();
+    }
+
+    @Test
+    void readOnlyTagIsRejectedBeforeAnyWrite() throws Exception {
+        OpcUaProperties.TagConfig readOnly = new OpcUaProperties.TagConfig();
+        readOnly.setSiteId("INDORE");
+        readOnly.setLineId("LINE-01");
+        readOnly.setTagCode("REACTOR_TEMP_C");
+        readOnly.setNodeId("nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1002");
+        readOnly.setWritable(false);
+        dispatcher.replaceConfiguredTags(List.of(readOnly));
+
+        dispatcher.handle(
+                topic(),
+                bytes(
+                        command(
+                                "ro1",
+                                "REACTOR_TEMP_C",
+                                "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1002",
+                                "OPC_UA")));
+
+        verify(writer, never()).write(any(), any(), any(), any(), any(), any(), any(), any());
+        assertThat(published).hasSize(1);
+        assertThat(published.get(0))
+                .contains("\"status\":\"REJECTED\"")
+                .contains("tag is not writable");
+    }
+
+    @Test
+    void replacedTagListTakesEffectForTheNextCommand() throws Exception {
+        byte[] payload =
+                bytes(
+                        command(
+                                "gone1",
+                                "VALVE_101_POS",
+                                "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
+                                "OPC_UA"));
+
+        dispatcher.replaceConfiguredTags(List.of());
+        dispatcher.handle(topic(), payload);
+
+        // The line itself is no longer configured, so the message is not ours to ACK.
+        verify(writer, never()).write(any(), any(), any(), any(), any(), any(), any(), any());
+        assertThat(published).isEmpty();
+    }
+
+    @Test
+    void syncModeDropsCrossSiteCommandsWithoutAck() throws Exception {
+        EdgeConfigProperties edgeConfig = new EdgeConfigProperties();
+        edgeConfig.setConfigSyncEnabled(true);
+        edgeConfig.setSiteId("INDORE");
+
+        OpcUaProperties.TagConfig pune = new OpcUaProperties.TagConfig();
+        pune.setSiteId("PUNE");
+        pune.setLineId("LINE-01");
+        pune.setTagCode("VALVE_101_POS");
+        pune.setNodeId("nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001");
+
+        CommandDispatcher scoped =
+                new CommandDispatcher(
+                        new OpcUaProperties(),
+                        edgeConfig,
+                        writer,
+                        history,
+                        mapper,
+                        Clock.fixed(NOW, ZoneOffset.UTC));
+        scoped.bindAckSink(
+                (topic, payload) -> {
+                    published.add(topic + "|" + payload);
+                    return true;
+                });
+        scoped.replaceConfiguredTags(List.of(pune));
+
+        ObjectNode crossSite =
+                command(
+                        "x1",
+                        "VALVE_101_POS",
+                        "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001",
+                        "OPC_UA");
+        crossSite.put("siteId", "PUNE");
+        scoped.handle("site/PUNE/line/LINE-01/commands", bytes(crossSite));
+
+        verify(writer, never()).write(any(), any(), any(), any(), any(), any(), any(), any());
+        assertThat(published).isEmpty();
+        assertThat(history.find("x1")).isEmpty();
     }
 
     private static String topic() {

@@ -223,18 +223,9 @@ Registry (script updates only `externalAddress`. Restart reconcile moves known s
 .\scripts\Prepare-Demo.ps1 -NodeId "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;s=Valve101Pos" -TagCode VALVE_101_POS -SiteId INDORE -LineId LINE-01
 ```
 
-Edge YAML — a custom NodeId is local only. Commit it only when `SeedAlignmentTest` is updated to the same id:
+The registry `externalAddress` is the only place to change this since M3.4 — the edge re-reads it on the next config poll, swaps the monitored item, and re-seeds the deadband baseline for that tag. No YAML edit and no edge restart.
 
-```yaml
-# plant-edge-service/src/main/resources/application.yml — matching tag only
-- site-id: INDORE
-  line-id: LINE-01
-  tag-code: VALVE_101_POS
-  node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;s=Valve101Pos   # local demo only
-  deadband: 0.5
-```
-
-Restart the edge after the YAML change. Remember the shared-node warning: the same NodeId on PUNE’s `VALVE_101_POS` still hits this physical node until PUNE is given a distinct NodeId in YAML + registry.
+Remember the shared-node warning: the same NodeId on PUNE's `VALVE_101_POS` still hits this physical node until PUNE's tag is given a distinct `externalAddress` in the registry.
 
 #### Happy-path valve write
 
@@ -273,17 +264,13 @@ API-created sites/lines default to lifecycle `DRAFT`. Promote with `PUT` (`lifec
 curl.exe -s -X POST "http://localhost:8080/api/registry/tags/batch" -H "Content-Type: application/json" -d "{\"tags\":[{\"siteId\":\"NASHIK\",\"lineId\":\"LINE-01\",\"tagCode\":\"REACTOR_TEMP_C\",\"description\":\"Reactor temperature\",\"protocol\":\"OPC_UA\",\"endpointUrl\":\"opc.tcp://localhost:53530/OPCUA/SimulationServer\",\"externalAddress\":\"nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1002\",\"dataType\":\"FLOAT\",\"unit\":\"C\",\"writable\":false,\"deadband\":0.2}]}"
 ```
 
-3. **Single tag on an existing line** — Registry UI (`/registry?siteId=INDORE&lineId=LINE-01`) or `POST /api/registry/tags` (defaults to `ACTIVE`). Edge allow-list is still YAML-only until M3.4 config sync:
+3. **Single tag on an existing line** — Registry UI (`/registry?siteId=INDORE&lineId=LINE-01`) or `POST /api/registry/tags` (defaults to `ACTIVE`).
 
-```yaml
-- site-id: INDORE
-  line-id: LINE-01
-  tag-code: MY_NEW_TAG
-  node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;s=MyNewTag
-  deadband: 0.5
-```
+Since M3.4 the edge allow-list comes from `GET /api/edge/{siteId}/config`, not YAML. One edge process = one `EDGE_SITE_ID` (default `INDORE`). PUNE needs a second process with its own `EDGE_SITE_ID=PUNE`, MQTT client id, server port, `EDGE_CONFIG_SNAPSHOT_PATH`, and `EDGE_BUFFER_PATH`. Activate the site, line, and tag, then wait one poll (`EDGE_CONFIG_POLL_MS`, default 15s) — no edge YAML edit and no container restart. Watch the **Central Config Sync** card on `http://127.0.0.1:8081/`: `fetched / applied version` should advance and the tag should appear in the tag table. A tag the server refuses (bad address, unknown namespace, Bad read, Bad monitored item) is listed under rejected and skipped; the rest of the line keeps streaming. Rejected tags retry on a registry revision bump (including a name-only site edit — `contentHash` may be unchanged), OPC reconnect, or edge restart — not on a bare 15s poll.
 
 Match `dataType` to the OPC UA node (FLOAT → Float/Double node; INT → integer node).
+
+With no active tag for the site, the edge reports phase `IDLE` rather than a fault: it is intentionally connected to nothing, and MQTT, commands, and diagnostics stay up.
 
 4. **Demo seed baseline** (optional, repo INDORE/PUNE only): update [`RegistrySeedRunner.sampleTags`](central-backend/src/main/java/com/factory/central/registry/RegistrySeedRunner.java) and [`SeedAlignmentTest`](plant-edge-service/src/test/java/com/factory/edge/opcua/SeedAlignmentTest.java).
 
@@ -291,8 +278,8 @@ Match `dataType` to the OPC UA node (FLOAT → Float/Double node; INT → intege
 
 | Layer | Effect |
 |-------|--------|
-| Edge YAML `deadband` | Actual Change-of-Value filter before MQTT / buffer. Restart edge. |
-| Registry `deadband` | Stored on the tag mapping; filtering still happens on the edge. |
+| Registry `deadband` | Source of truth. The edge picks it up on the next config poll; filtering still happens on the edge. A deadband-only change does not touch the OPC UA subscription, so baselines survive. |
+| Edge YAML `deadband` | Static fallback only (`EDGE_CONFIG_SYNC_ENABLED=false` plus an explicit `app.opcua.tags` list). Restart edge. |
 
 Seed defaults: valves `0.5`, `REACTOR_TEMP_C` `0.2`, `REACTOR_TEMP_SP` `0.1`.
 
@@ -340,7 +327,7 @@ $env:OPC_ENDPOINT_URL = "opc.tcp://plc-host:4840"
 
    Put the OPC UA server certificate in `trusted/certs`, and trust the edge client certificate on the server. An empty or unreadable trust dir fails startup (`IllegalStateException`) and does **not** fall back to None. Handshake rejection after PKI is present may BACKOFF like any connect failure. Username tokens are out of scope in this release.
 
-5. **Topology:** one `plant-edge-service` process = one OPC UA session for every tag in its YAML. A second plant usually means a second edge process with a distinct `EDGE_MQTT_CLIENT_ID`.
+5. **Topology:** one `plant-edge-service` process = one `EDGE_SITE_ID` + one OPC UA session for that site’s active manifest. A second plant (e.g. PUNE) means a second edge process with distinct `EDGE_SITE_ID`, `EDGE_MQTT_CLIENT_ID`, server port, `EDGE_CONFIG_SNAPSHOT_PATH`, and `EDGE_BUFFER_PATH`.
 
 6. Software interlocks and bounds stay in the central command path. They do not replace PLC / ladder hardwired interlocks.
 

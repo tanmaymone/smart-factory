@@ -14,6 +14,9 @@ services:
   plant-edge:
     environment:
       MQTT_BROKER_URL: tcp://mosquitto:1883
+      CENTRAL_BASE_URL: http://central-backend:8080
+      EDGE_SITE_ID: ${EDGE_SITE_ID:-INDORE}
+      EDGE_CONFIG_SNAPSHOT_PATH: /data/edge-config.json
       OPC_UA_ENDPOINT: ${OPC_UA_ENDPOINT:-${OPC_ENDPOINT_URL:-opc.tcp://host.docker.internal:53530/OPCUA/SimulationServer}}
     depends_on:
       mosquitto:

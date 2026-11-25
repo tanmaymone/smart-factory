@@ -18,9 +18,9 @@ import org.slf4j.LoggerFactory;
 final class MqttCommandClient implements MqttCallbackExtended {
 
     private static final Logger log = LoggerFactory.getLogger(MqttCommandClient.class);
-    private static final String COMMAND_FILTER = "site/+/line/+/commands";
 
     private final MqttProperties properties;
+    private final String commandFilter;
     private final MqttClient client;
     private final AtomicBoolean connected = new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -28,8 +28,9 @@ final class MqttCommandClient implements MqttCallbackExtended {
     private Consumer<Boolean> onConnected = reconnect -> {};
     private MessageHandler messageHandler = (t, p) -> {};
 
-    MqttCommandClient(MqttProperties properties) throws MqttException {
+    MqttCommandClient(MqttProperties properties, String commandFilter) throws MqttException {
         this.properties = properties;
+        this.commandFilter = commandFilter;
         this.client =
                 new MqttClient(
                         properties.getBrokerUrl(),
@@ -103,8 +104,8 @@ final class MqttCommandClient implements MqttCallbackExtended {
 
     private void subscribeCommands() {
         try {
-            client.subscribe(COMMAND_FILTER, properties.getQos());
-            log.info("EDGE CMD MQTT subscribed filter={}", COMMAND_FILTER);
+            client.subscribe(commandFilter, properties.getQos());
+            log.info("EDGE CMD MQTT subscribed filter={}", commandFilter);
         } catch (MqttException e) {
             log.warn("EDGE CMD MQTT subscribe failed: {}", e.getMessage());
         }

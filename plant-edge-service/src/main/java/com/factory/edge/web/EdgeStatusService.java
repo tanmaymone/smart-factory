@@ -2,6 +2,12 @@ package com.factory.edge.web;
 
 import com.factory.edge.command.EdgeCommandHistory;
 import com.factory.edge.command.MqttCommandLink;
+import com.factory.edge.config.ActiveTagCatalog;
+import com.factory.edge.config.EdgeApplyState;
+import com.factory.edge.config.EdgeApplyView;
+import com.factory.edge.config.EdgeConfigProperties;
+import com.factory.edge.config.EdgeConfigSync;
+import com.factory.edge.config.EdgeSyncView;
 import com.factory.edge.mqtt.EdgeLinkHealth;
 import com.factory.edge.mqtt.MqttProperties;
 import com.factory.edge.mqtt.MqttTelemetryLink;
@@ -10,6 +16,7 @@ import com.factory.edge.opcua.OpcUaProperties;
 import com.factory.edge.opcua.OpcUaSession;
 import com.factory.edge.opcua.TagObservationStore;
 import com.factory.edge.web.EdgeStatusSnapshot.CommandStatus;
+import com.factory.edge.web.EdgeStatusSnapshot.ConfigStatus;
 import com.factory.edge.web.EdgeStatusSnapshot.MqttStatus;
 import com.factory.edge.web.EdgeStatusSnapshot.OpcUaStatus;
 import com.factory.edge.web.EdgeStatusSnapshot.TagStatus;
@@ -29,6 +36,10 @@ public class EdgeStatusService {
     private final MqttTelemetryLink telemetryLink;
     private final MqttCommandLink commandLink;
     private final EdgeCommandHistory commandHistory;
+    private final EdgeConfigProperties edgeConfig;
+    private final EdgeConfigSync configSync;
+    private final ActiveTagCatalog catalog;
+    private final EdgeApplyState applyState;
 
     public EdgeStatusService(
             OpcUaProperties opcUaProperties,
@@ -38,7 +49,11 @@ public class EdgeStatusService {
             MqttProperties mqttProperties,
             MqttTelemetryLink telemetryLink,
             MqttCommandLink commandLink,
-            EdgeCommandHistory commandHistory) {
+            EdgeCommandHistory commandHistory,
+            EdgeConfigProperties edgeConfig,
+            EdgeConfigSync configSync,
+            ActiveTagCatalog catalog,
+            EdgeApplyState applyState) {
         this.opcUaProperties = opcUaProperties;
         this.session = session;
         this.opcUaLinkHealth = opcUaLinkHealth;
@@ -47,10 +62,34 @@ public class EdgeStatusService {
         this.telemetryLink = telemetryLink;
         this.commandLink = commandLink;
         this.commandHistory = commandHistory;
+        this.edgeConfig = edgeConfig;
+        this.configSync = configSync;
+        this.catalog = catalog;
+        this.applyState = applyState;
     }
 
     public EdgeStatusSnapshot snapshot() {
-        return new EdgeStatusSnapshot(opcUa(), mqtt(), tags(), commands());
+        return new EdgeStatusSnapshot(opcUa(), mqtt(), config(), tags(), commands());
+    }
+
+    private ConfigStatus config() {
+        EdgeSyncView sync = configSync.syncView();
+        EdgeApplyView apply = applyState.get();
+        return new ConfigStatus(
+                edgeConfig.isConfigSyncEnabled(),
+                edgeConfig.getNormalizedSiteId(),
+                sync.source(),
+                sync.fetchedVersion(),
+                sync.contentHash(),
+                sync.lastSyncedAt(),
+                sync.lastAttemptAt(),
+                sync.lastError(),
+                apply.appliedVersion(),
+                apply.appliedContentHash(),
+                apply.lastAppliedAt(),
+                apply.activeTagCount(),
+                apply.rejectedCount(),
+                apply.rejected());
     }
 
     private OpcUaStatus opcUa() {
@@ -74,8 +113,12 @@ public class EdgeStatusService {
                 health.lastPublishAt());
     }
 
+    /** Central-config tags win once they exist; YAML stays the source only in static mode. */
     private List<TagStatus> tags() {
-        List<OpcUaProperties.TagConfig> configs = opcUaProperties.getTags();
+        List<OpcUaProperties.TagConfig> configs =
+                edgeConfig.isConfigSyncEnabled() || catalog.size() > 0
+                        ? catalog.tags()
+                        : opcUaProperties.getTags();
         if (configs == null || configs.isEmpty()) {
             return List.of();
         }
@@ -90,6 +133,7 @@ public class EdgeStatusService {
                             tag.getTagCode(),
                             tag.getNodeId(),
                             tag.getDeadband(),
+                            tag.isWritable(),
                             obs == null ? null : obs.value(),
                             obs == null ? null : obs.quality(),
                             obs == null ? null : obs.observedAt(),

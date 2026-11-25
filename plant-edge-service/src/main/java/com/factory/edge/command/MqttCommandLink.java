@@ -1,5 +1,6 @@
 package com.factory.edge.command;
 
+import com.factory.edge.config.EdgeConfigProperties;
 import com.factory.edge.mqtt.MqttProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,15 +41,17 @@ public class MqttCommandLink {
     @Autowired
     public MqttCommandLink(
             MqttProperties properties,
+            EdgeConfigProperties edgeConfig,
             CommandDispatcher dispatcher,
             EdgeCommandHistory history,
             ObjectMapper objectMapper)
             throws MqttException {
-        this(properties, dispatcher, history, objectMapper, Clock.systemUTC());
+        this(properties, edgeConfig, dispatcher, history, objectMapper, Clock.systemUTC());
     }
 
     MqttCommandLink(
             MqttProperties properties,
+            EdgeConfigProperties edgeConfig,
             CommandDispatcher dispatcher,
             EdgeCommandHistory history,
             ObjectMapper objectMapper,
@@ -59,7 +62,7 @@ public class MqttCommandLink {
         this.objectMapper = objectMapper;
         this.clock = clock;
         this.ackMapper = new CommandAckMapper(objectMapper);
-        this.client = new MqttCommandClient(properties);
+        this.client = new MqttCommandClient(properties, commandFilter(edgeConfig));
         this.dispatcher.bindAckSink(client::publish);
         this.workerThread = new Thread(this::workerLoop, "edge-command");
         this.workerThread.setDaemon(true);
@@ -69,6 +72,14 @@ public class MqttCommandLink {
 
     public boolean isConnected() {
         return client.isConnected();
+    }
+
+    /** One site per edge process once config sync owns the tag list (M4.1 ACLs build on this). */
+    static String commandFilter(EdgeConfigProperties edgeConfig) {
+        if (edgeConfig != null && edgeConfig.isConfigSyncEnabled()) {
+            return "site/" + edgeConfig.getNormalizedSiteId() + "/line/+/commands";
+        }
+        return "site/+/line/+/commands";
     }
 
     private void enqueue(String topic, byte[] payload) {

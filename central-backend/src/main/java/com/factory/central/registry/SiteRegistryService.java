@@ -11,10 +11,15 @@ public class SiteRegistryService {
 
     private final SiteRepository siteRepository;
     private final RegistryLivenessService livenessService;
+    private final SiteConfigRevisionService revisionService;
 
-    public SiteRegistryService(SiteRepository siteRepository, RegistryLivenessService livenessService) {
+    public SiteRegistryService(
+            SiteRepository siteRepository,
+            RegistryLivenessService livenessService,
+            SiteConfigRevisionService revisionService) {
         this.siteRepository = siteRepository;
         this.livenessService = livenessService;
+        this.revisionService = revisionService;
     }
 
     @Transactional(readOnly = true)
@@ -42,6 +47,7 @@ public class SiteRegistryService {
                             request.timezone().trim(),
                             SiteStatus.ONLINE,
                             lifecycle));
+                    revisionService.seedIfAbsent(saved.getId());
                     return new SiteCreateResult(SiteResponse.from(saved), true);
                 });
     }
@@ -54,6 +60,7 @@ public class SiteRegistryService {
                 request.lifecycle() == null ? existing.getLifecycle() : request.lifecycle();
         existing.apply(request.name().trim(), request.timezone().trim(), nextLifecycle);
         Site saved = siteRepository.save(existing);
+        revisionService.bump(saved.getId());
         if (wasActive && saved.getLifecycle() != RegistryLifecycle.ACTIVE) {
             // Parent demotion ⇒ every nested tag is non-live; skip per-tag DB checks.
             livenessService.evictScope(saved.getId(), null);

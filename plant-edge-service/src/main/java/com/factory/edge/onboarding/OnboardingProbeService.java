@@ -21,6 +21,7 @@ import org.eclipse.milo.opcua.stack.core.UaException;
 import org.eclipse.milo.opcua.stack.core.types.structured.EndpointDescription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -50,6 +51,7 @@ public class OnboardingProbeService {
     private final long budgetMs;
     private final HostResolver hostResolver;
 
+    @Autowired
     public OnboardingProbeService(OnboardingOpcUaBridge bridge, OpcUaProperties opcUaProperties) {
         this(bridge, opcUaProperties, DEFAULT_BUDGET_MS, InetAddress::getByName);
     }

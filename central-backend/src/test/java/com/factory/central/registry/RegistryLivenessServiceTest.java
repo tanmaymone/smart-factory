@@ -47,8 +47,10 @@ class RegistryLivenessServiceTest {
         cache = new InMemoryLatestTagCache();
         livenessService = new RegistryLivenessService(
                 siteRepository, lineRepository, tagMappingRepository, cache);
-        siteRegistryService = new SiteRegistryService(siteRepository, livenessService);
-        lineRegistryService = new LineRegistryService(lineRepository, siteRepository, livenessService);
+        SiteConfigRevisionService revisionService = org.mockito.Mockito.mock(SiteConfigRevisionService.class);
+        siteRegistryService = new SiteRegistryService(siteRepository, livenessService, revisionService);
+        lineRegistryService =
+                new LineRegistryService(lineRepository, siteRepository, livenessService, revisionService);
     }
 
     @Test

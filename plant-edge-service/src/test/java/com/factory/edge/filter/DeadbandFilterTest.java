@@ -133,6 +133,76 @@ class DeadbandFilterTest {
                 .hasMessageContaining("deadband must be >= 0");
     }
 
+    @Test
+    void replaceBandsKeepsBaselineForUnchangedTags() {
+        assertThat(filter.shouldEmit(good(50.0))).isTrue();
+
+        filter.replaceBands(
+                DeadbandFilter.bandsOf(List.of(tag("INDORE", "LINE-01", "VALVE_101_POS", 2.0))));
+
+        // Baseline 50.0 survived the swap; the wider band now holds what used to emit.
+        assertThat(filter.shouldEmit(good(51.0))).isFalse();
+        assertThat(filter.shouldEmit(good(52.0))).isTrue();
+    }
+
+    @Test
+    void replaceBandsRejectsNegativeBand() {
+        assertThatThrownBy(
+                        () ->
+                                DeadbandFilter.bandsOf(
+                                        List.of(tag("INDORE", "LINE-01", "VALVE_101_POS", -0.5))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("deadband must be >= 0");
+    }
+
+    @Test
+    void evictUnseedsOnlyTheGivenKeys() {
+        DeadbandFilter multi =
+                new DeadbandFilter(
+                        List.of(
+                                tag("INDORE", "LINE-01", "VALVE_101_POS", 0.5),
+                                tag("PUNE", "LINE-01", "VALVE_101_POS", 0.5)));
+        assertThat(multi.shouldEmit(goodAt("INDORE", 50.0))).isTrue();
+        assertThat(multi.shouldEmit(goodAt("PUNE", 50.0))).isTrue();
+
+        multi.evict(List.of(DeadbandFilter.key("INDORE", "LINE-01", "VALVE_101_POS")));
+
+        assertThat(multi.shouldEmit(goodAt("INDORE", 50.1))).isTrue();
+        assertThat(multi.shouldEmit(goodAt("PUNE", 50.1))).isFalse();
+    }
+
+    @Test
+    void evictIgnoresNullAndUnknownKeys() {
+        assertThat(filter.shouldEmit(good(50.0))).isTrue();
+        filter.evict(null);
+        filter.evict(List.of("INDORE|LINE-09|NOPE"));
+        assertThat(filter.shouldEmit(good(50.1))).isFalse();
+    }
+
+    @Test
+    void clearAllUnseedsEveryTag() {
+        DeadbandFilter multi =
+                new DeadbandFilter(
+                        List.of(
+                                tag("INDORE", "LINE-01", "VALVE_101_POS", 0.5),
+                                tag("PUNE", "LINE-01", "VALVE_101_POS", 0.5)));
+        assertThat(multi.shouldEmit(goodAt("INDORE", 50.0))).isTrue();
+        assertThat(multi.shouldEmit(goodAt("PUNE", 50.0))).isTrue();
+
+        multi.clearAll();
+
+        assertThat(multi.shouldEmit(goodAt("INDORE", 50.1))).isTrue();
+        assertThat(multi.shouldEmit(goodAt("PUNE", 50.1))).isTrue();
+    }
+
+    @Test
+    void emptyBandsFallBackToZeroBandCov() {
+        assertThat(filter.shouldEmit(good(50.0))).isTrue();
+        filter.replaceBands(null);
+        assertThat(filter.shouldEmit(good(50.0))).isFalse();
+        assertThat(filter.shouldEmit(good(50.1))).isTrue();
+    }
+
     private static OpcUaProperties.TagConfig tag(
             String siteId, String lineId, String tagCode, double deadband) {
         OpcUaProperties.TagConfig config = new OpcUaProperties.TagConfig();

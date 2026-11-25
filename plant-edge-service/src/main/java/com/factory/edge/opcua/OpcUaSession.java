@@ -1,6 +1,7 @@
 package com.factory.edge.opcua;
 
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import org.eclipse.milo.opcua.stack.core.AttributeId;
@@ -24,6 +25,34 @@ public interface OpcUaSession extends AutoCloseable {
             Consumer<TagReading> onReading,
             LongConsumer onSessionLost);
 
+    /**
+     * Connect once and subscribe whatever the server accepts. A dead endpoint still throws {@link
+     * OpcUaUnavailableException}; per-tag faults land in the result's rejected list instead.
+     */
+    OpcUaApply.Result startLenient(
+            List<OpcUaProperties.TagConfig> tags,
+            Consumer<TagReading> onReading,
+            LongConsumer onSessionLost);
+
+    /**
+     * Builds a parked (publishing-disabled) replacement subscription on the live connection so the
+     * caller owns the cutover point. {@code initialReadKeys} ({@code siteId|lineId|tagCode}) limits
+     * the initial READ to new or re-addressed tags; those readings stay buffered until commit.
+     */
+    SwapPlan prepareSwap(
+            List<OpcUaProperties.TagConfig> tags,
+            Set<String> initialReadKeys,
+            Consumer<TagReading> onReading);
+
+    /** Stops readings from the subscription currently in place, before the new one goes live. */
+    void deactivateReadings();
+
+    /** Flushes buffered READs, enables publishing on the plan, then deletes the old subscription. */
+    void commitSwap(SwapPlan plan);
+
+    /** Drops the parked subscription and leaves the live one untouched. */
+    void abortSwap(SwapPlan plan);
+
     /** True when a live client is connected and ready for read/write. */
     boolean isAvailable();
 
@@ -41,4 +70,12 @@ public interface OpcUaSession extends AutoCloseable {
 
     @Override
     void close();
+
+    /** Opaque parked-subscription handle produced by {@link #prepareSwap}. */
+    interface SwapPlan {
+
+        List<OpcUaProperties.TagConfig> accepted();
+
+        List<OpcUaApply.Reject> rejected();
+    }
 }

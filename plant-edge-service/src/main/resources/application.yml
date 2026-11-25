@@ -24,42 +24,8 @@ app:
       policy: None
       identity: anonymous
       pki-dir: ${OPC_UA_PKI_DIR:}
-    tags:
-      - site-id: INDORE
-        line-id: LINE-01
-        tag-code: VALVE_101_POS
-        node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007
-        deadband: 0.5
-      - site-id: INDORE
-        line-id: LINE-01
-        tag-code: REACTOR_TEMP_C
-        node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1002
-        deadband: 0.2
-      - site-id: INDORE
-        line-id: LINE-01
-        tag-code: REACTOR_TEMP_SP
-        node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007
-        deadband: 0.1
-      - site-id: INDORE
-        line-id: LINE-02
-        tag-code: VALVE_201_POS
-        node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007
-        deadband: 0.5
-      - site-id: PUNE
-        line-id: LINE-01
-        tag-code: VALVE_101_POS
-        node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007
-        deadband: 0.5
-      - site-id: PUNE
-        line-id: LINE-01
-        tag-code: REACTOR_TEMP_C
-        node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1002
-        deadband: 0.2
-      - site-id: PUNE
-        line-id: LINE-01
-        tag-code: REACTOR_TEMP_SP
-        node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007
-        deadband: 0.1
+    # No app.opcua.tags here: the central registry manifest is the single source of truth (M3.4).
+    # Static mode (EDGE_CONFIG_SYNC_ENABLED=false) must supply its own app.opcua.tags list.
   buffer:
     path: ${EDGE_BUFFER_PATH:./data/edge-outbound.db}
     max-records: ${EDGE_BUFFER_MAX_RECORDS:10000}
@@ -68,6 +34,14 @@ app:
   onboarding:
     # Plant-LAN port oracle: stays off unless dev or the Prosys protocol tests opt in. M4.2 closes it.
     probe-enabled: false
+  edge:
+    # OPC UA hot-reload owns the tag list. Set false only to fall back to an explicit YAML list.
+    config-sync-enabled: ${EDGE_CONFIG_SYNC_ENABLED:true}
+    site-id: ${EDGE_SITE_ID:INDORE}
+    central-base-url: ${CENTRAL_BASE_URL:http://localhost:8080}
+    config-poll-ms: ${EDGE_CONFIG_POLL_MS:15000}
+    config-timeout-ms: ${EDGE_CONFIG_TIMEOUT_MS:5000}
+    snapshot-path: ${EDGE_CONFIG_SNAPSHOT_PATH:./data/edge-config.json}
   mqtt:
     # Full URL wins. On a plant PC this is the cloud broker; the laptop dev compose uses tcp://mosquitto:1883.
     broker-url: ${MQTT_BROKER_URL:tcp://localhost:${MQTT_PORT:1883}}

@@ -7,11 +7,17 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.TestPropertySource;
 
+/**
+ * Static mode (config sync off) still binds an explicit {@code app.opcua.tags} list. The list lives
+ * in {@code application-static-tags.yml} since M3.4 moved the live source to the central manifest.
+ */
 @Tag("EDGE-OPC-PROBE")
 @SpringBootTest(classes = com.factory.edge.PlantEdgeApplication.class)
+@ActiveProfiles("static-tags")
 @TestPropertySource(
         properties = {
             "app.opcua.endpoint-url=opc.tcp://127.0.0.1:1/disabled",
@@ -27,6 +33,14 @@ class SeedAlignmentTest {
 
     @Autowired
     private OpcUaProperties properties;
+
+    @Autowired
+    private com.factory.edge.config.EdgeConfigProperties edgeConfig;
+
+    @Test
+    void staticModeKeepsSyncOff() {
+        assertThat(edgeConfig.isConfigSyncEnabled()).isFalse();
+    }
 
     @Test
     void yamlTagsMatchRegistrySeedRunnerExactly() {

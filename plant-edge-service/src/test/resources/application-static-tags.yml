@@ -1,0 +1,42 @@
+# Static-mode fixture: the INDORE/PUNE demo baseline that used to live in the main application.yml.
+# Production edges get this list from GET /api/edge/{siteId}/config instead.
+app:
+  edge:
+    config-sync-enabled: false
+  opcua:
+    tags:
+      - site-id: INDORE
+        line-id: LINE-01
+        tag-code: VALVE_101_POS
+        node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007
+        deadband: 0.5
+      - site-id: INDORE
+        line-id: LINE-01
+        tag-code: REACTOR_TEMP_C
+        node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1002
+        deadband: 0.2
+      - site-id: INDORE
+        line-id: LINE-01
+        tag-code: REACTOR_TEMP_SP
+        node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007
+        deadband: 0.1
+      - site-id: INDORE
+        line-id: LINE-02
+        tag-code: VALVE_201_POS
+        node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007
+        deadband: 0.5
+      - site-id: PUNE
+        line-id: LINE-01
+        tag-code: VALVE_101_POS
+        node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007
+        deadband: 0.5
+      - site-id: PUNE
+        line-id: LINE-01
+        tag-code: REACTOR_TEMP_C
+        node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1002
+        deadband: 0.2
+      - site-id: PUNE
+        line-id: LINE-01
+        tag-code: REACTOR_TEMP_SP
+        node-id: nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1007
+        deadband: 0.1

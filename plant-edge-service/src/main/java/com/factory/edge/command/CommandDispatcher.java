@@ -1,12 +1,15 @@
 package com.factory.edge.command;
 
+import com.factory.edge.config.EdgeConfigProperties;
 import com.factory.edge.opcua.OpcUaProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -21,36 +24,50 @@ public class CommandDispatcher {
     private static final Pattern TOPIC =
             Pattern.compile("^site/([^/]+)/line/([^/]+)/commands$");
 
-    private final ConfiguredTagIndex tags;
+    private final AtomicReference<ConfiguredTagIndex> tags;
     private final CommandWriter writer;
     private final EdgeCommandHistory history;
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private final CommandAckMapper ackMapper;
+    private final EdgeConfigProperties edgeConfig;
 
     private AckSink ackSink = (topic, payload) -> false;
 
     @Autowired
     public CommandDispatcher(
             OpcUaProperties properties,
+            EdgeConfigProperties edgeConfig,
             CommandWriter writer,
             EdgeCommandHistory history,
             ObjectMapper objectMapper) {
-        this(properties, writer, history, objectMapper, Clock.systemUTC());
+        this(properties, edgeConfig, writer, history, objectMapper, Clock.systemUTC());
     }
 
     CommandDispatcher(
             OpcUaProperties properties,
+            EdgeConfigProperties edgeConfig,
             CommandWriter writer,
             EdgeCommandHistory history,
             ObjectMapper objectMapper,
             Clock clock) {
-        this.tags = new ConfiguredTagIndex(properties);
+        // Sync mode starts with an empty allow-list; the reconciler fills it from central config.
+        this.tags =
+                new AtomicReference<>(
+                        edgeConfig != null && edgeConfig.isConfigSyncEnabled()
+                                ? new ConfiguredTagIndex(List.<OpcUaProperties.TagConfig>of())
+                                : new ConfiguredTagIndex(properties));
+        this.edgeConfig = edgeConfig;
         this.writer = writer;
         this.history = history;
         this.objectMapper = objectMapper;
         this.clock = clock;
         this.ackMapper = new CommandAckMapper(objectMapper);
+    }
+
+    /** Swaps the allow-list after a config apply. Called from the reconcile thread. */
+    public void replaceConfiguredTags(List<OpcUaProperties.TagConfig> accepted) {
+        tags.set(new ConfiguredTagIndex(accepted));
     }
 
     public void bindAckSink(AckSink sink) {
@@ -64,7 +81,15 @@ public class CommandDispatcher {
         }
         String topicSite = matcher.group(1);
         String topicLine = matcher.group(2);
-        if (!tags.isConfiguredLine(topicSite, topicLine)) {
+        if (edgeConfig != null
+                && edgeConfig.isConfigSyncEnabled()
+                && !edgeConfig.getNormalizedSiteId().equals(topicSite)) {
+            // One site per edge process: a cross-site message is not ours to ACK.
+            log.debug("Dropping cross-site command topic={}", topic);
+            return;
+        }
+        ConfiguredTagIndex index = tags.get();
+        if (!index.isConfiguredLine(topicSite, topicLine)) {
             log.debug("Ignoring command for unconfigured site/line {}/{}", topicSite, topicLine);
             return;
         }
@@ -102,7 +127,7 @@ public class CommandDispatcher {
             return;
         }
 
-        CommandResult result = execute(topicSite, topicLine, commandId, body, clock.instant());
+        CommandResult result = execute(index, topicSite, topicLine, commandId, body, clock.instant());
         boolean published = publishAck(result);
         history.record(result, published);
     }
@@ -116,7 +141,12 @@ public class CommandDispatcher {
     }
 
     private CommandResult execute(
-            String siteId, String lineId, String commandId, JsonNode body, Instant now) {
+            ConfiguredTagIndex index,
+            String siteId,
+            String lineId,
+            String commandId,
+            JsonNode body,
+            Instant now) {
         String tagCode = text(body, "tagCode");
         String protocol = text(body, "protocol");
         String dataType = text(body, "dataType");
@@ -129,9 +159,12 @@ public class CommandDispatcher {
         if (tagCode == null || tagCode.isBlank()) {
             return reject(commandId, siteId, lineId, null, address, "tagCode is required", now);
         }
-        Optional<OpcUaProperties.TagConfig> mapped = tags.find(siteId, lineId, tagCode);
+        Optional<OpcUaProperties.TagConfig> mapped = index.find(siteId, lineId, tagCode);
         if (mapped.isEmpty()) {
             return reject(commandId, siteId, lineId, tagCode, address, "unknown tag", now);
+        }
+        if (!mapped.get().isWritable()) {
+            return reject(commandId, siteId, lineId, tagCode, address, "tag is not writable", now);
         }
         String resolvedNode = mapped.get().getNodeId();
         if (address != null && !address.isBlank() && !Objects.equals(address, resolvedNode)) {

@@ -1,5 +1,6 @@
 package com.factory.edge.web;
 
+import com.factory.edge.config.EdgeApplyView;
 import java.time.Instant;
 import java.util.List;
 
@@ -7,6 +8,7 @@ import java.util.List;
 public record EdgeStatusSnapshot(
         OpcUaStatus opcua,
         MqttStatus mqtt,
+        ConfigStatus config,
         List<TagStatus> tags,
         List<CommandStatus> commands) {
 
@@ -24,12 +26,30 @@ public record EdgeStatusSnapshot(
             int bufferedCount,
             Instant lastPublishAt) {}
 
+    /** Sync-owned fetch state plus apply-owned active/rejected state for the central manifest. */
+    public record ConfigStatus(
+            boolean syncEnabled,
+            String siteId,
+            String source,
+            Long fetchedVersion,
+            String contentHash,
+            Instant lastSyncedAt,
+            Instant lastAttemptAt,
+            String lastError,
+            Long appliedVersion,
+            String appliedContentHash,
+            Instant lastAppliedAt,
+            int activeTagCount,
+            int rejectedCount,
+            List<EdgeApplyView.RejectedTag> rejected) {}
+
     public record TagStatus(
             String siteId,
             String lineId,
             String tagCode,
             String nodeId,
             double deadband,
+            boolean writable,
             Object value,
             String quality,
             Instant observedAt,

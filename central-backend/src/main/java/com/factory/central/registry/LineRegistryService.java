@@ -12,14 +12,17 @@ public class LineRegistryService {
     private final LineRepository lineRepository;
     private final SiteRepository siteRepository;
     private final RegistryLivenessService livenessService;
+    private final SiteConfigRevisionService revisionService;
 
     public LineRegistryService(
             LineRepository lineRepository,
             SiteRepository siteRepository,
-            RegistryLivenessService livenessService) {
+            RegistryLivenessService livenessService,
+            SiteConfigRevisionService revisionService) {
         this.lineRepository = lineRepository;
         this.siteRepository = siteRepository;
         this.livenessService = livenessService;
+        this.revisionService = revisionService;
     }
 
     @Transactional(readOnly = true)
@@ -49,6 +52,7 @@ public class LineRegistryService {
                             request.lifecycle() == null ? RegistryLifecycle.DRAFT : request.lifecycle();
                     Line saved = lineRepository.save(
                             new Line(siteCode, lineCode, request.name().trim(), lifecycle));
+                    revisionService.bump(saved.getSiteId());
                     return new LineCreateResult(LineResponse.from(saved), true);
                 });
     }
@@ -61,6 +65,7 @@ public class LineRegistryService {
                 request.lifecycle() == null ? existing.getLifecycle() : request.lifecycle();
         existing.apply(request.name().trim(), nextLifecycle);
         Line saved = lineRepository.save(existing);
+        revisionService.bump(saved.getSiteId());
         if (wasActive && saved.getLifecycle() != RegistryLifecycle.ACTIVE) {
             // Parent demotion ⇒ every nested tag on this line is non-live; skip per-tag DB checks.
             livenessService.evictScope(saved.getSiteId(), saved.getLineId());

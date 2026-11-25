@@ -26,6 +26,10 @@ public final class AccessRoute {
             }
             return Optional.of(AccessAction.REGISTRY_WRITE);
         }
+        if (isEdgeConfig(normalizedPath)
+                && ("GET".equals(normalizedMethod) || "HEAD".equals(normalizedMethod))) {
+            return Optional.of(AccessAction.OPEN);
+        }
         if ("/api/commands/audit".equals(normalizedPath) && "GET".equals(normalizedMethod)) {
             return Optional.of(AccessAction.OPEN);
         }
@@ -81,6 +85,20 @@ public final class AccessRoute {
 
     private static boolean isRegistry(String path) {
         return "/api/registry".equals(path) || startsWith(path, "/api/registry/");
+    }
+
+    /** Exactly {@code /api/edge/{siteId}/config} — one path segment between edge and config. */
+    private static boolean isEdgeConfig(String path) {
+        if (!startsWith(path, "/api/edge/")) {
+            return false;
+        }
+        String rest = path.substring("/api/edge/".length());
+        int slash = rest.indexOf('/');
+        if (slash <= 0) {
+            return false;
+        }
+        String afterSite = rest.substring(slash + 1);
+        return "config".equals(afterSite);
     }
 
     private static boolean isAccess(String path) {

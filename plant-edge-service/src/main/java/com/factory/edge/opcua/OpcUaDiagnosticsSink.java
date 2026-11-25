@@ -37,6 +37,10 @@ public class OpcUaDiagnosticsSink {
         linkHealth.markUp();
     }
 
+    void markIdle() {
+        linkHealth.markIdle();
+    }
+
     void markStopped() {
         linkHealth.markStopped();
     }

@@ -180,6 +180,10 @@ public class OpcUaProperties {
         private String tagCode;
         private String nodeId;
         private double deadband;
+        private boolean writable = true;
+        private String protocol = "OPC_UA";
+        private String dataType;
+        private String endpointUrl;
 
         public String getSiteId() {
             return siteId;
@@ -219,6 +223,38 @@ public class OpcUaProperties {
 
         public void setDeadband(double deadband) {
             this.deadband = deadband;
+        }
+
+        public boolean isWritable() {
+            return writable;
+        }
+
+        public void setWritable(boolean writable) {
+            this.writable = writable;
+        }
+
+        public String getProtocol() {
+            return protocol;
+        }
+
+        public void setProtocol(String protocol) {
+            this.protocol = protocol;
+        }
+
+        public String getDataType() {
+            return dataType;
+        }
+
+        public void setDataType(String dataType) {
+            this.dataType = dataType;
+        }
+
+        public String getEndpointUrl() {
+            return endpointUrl;
+        }
+
+        public void setEndpointUrl(String endpointUrl) {
+            this.endpointUrl = endpointUrl;
         }
     }
 }

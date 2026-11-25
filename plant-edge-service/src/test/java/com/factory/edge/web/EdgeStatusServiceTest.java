@@ -7,6 +7,12 @@ import static org.mockito.Mockito.when;
 import com.factory.edge.command.CommandResult;
 import com.factory.edge.command.EdgeCommandHistory;
 import com.factory.edge.command.MqttCommandLink;
+import com.factory.edge.config.ActiveTagCatalog;
+import com.factory.edge.config.EdgeApplyState;
+import com.factory.edge.config.EdgeApplyView;
+import com.factory.edge.config.EdgeConfigProperties;
+import com.factory.edge.config.EdgeConfigSync;
+import com.factory.edge.config.EdgeSyncView;
 import com.factory.edge.mqtt.EdgeLinkHealth;
 import com.factory.edge.mqtt.MqttProperties;
 import com.factory.edge.mqtt.MqttTelemetryLink;
@@ -35,6 +41,10 @@ class EdgeStatusServiceTest {
     private MqttTelemetryLink telemetryLink;
     private MqttCommandLink commandLink;
     private EdgeCommandHistory history;
+    private EdgeConfigProperties edgeConfig;
+    private EdgeConfigSync configSync;
+    private ActiveTagCatalog catalog;
+    private EdgeApplyState applyState;
     private EdgeStatusService service;
     private ObjectMapper objectMapper;
 
@@ -48,12 +58,18 @@ class EdgeStatusServiceTest {
 
         session = mock(OpcUaSession.class);
         opcHealth = new OpcUaLinkHealth();
-        observations = new TagObservationStore();
+        catalog = new ActiveTagCatalog();
+        observations = new TagObservationStore(catalog);
         mqttProperties = new MqttProperties();
         mqttProperties.setBrokerUrl("tcp://localhost:1883");
         telemetryLink = mock(MqttTelemetryLink.class);
         commandLink = mock(MqttCommandLink.class);
         history = new EdgeCommandHistory();
+        edgeConfig = new EdgeConfigProperties();
+        configSync = mock(EdgeConfigSync.class);
+        when(configSync.syncView())
+                .thenReturn(EdgeSyncView.empty().withSource(EdgeSyncView.SOURCE_STATIC_YAML));
+        applyState = new EdgeApplyState();
 
         service =
                 new EdgeStatusService(
@@ -64,7 +80,11 @@ class EdgeStatusServiceTest {
                         mqttProperties,
                         telemetryLink,
                         commandLink,
-                        history);
+                        history,
+                        edgeConfig,
+                        configSync,
+                        catalog,
+                        applyState);
 
         objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     }
@@ -180,6 +200,66 @@ class EdgeStatusServiceTest {
         assertThat(snap.commands().get(0).targetValue()).isEqualTo(72.5);
         assertThat(snap.commands().get(0).ackPublished()).isTrue();
         assertThat(snap.commands().get(0).executedAt()).isEqualTo(at);
+    }
+
+    @Test
+    void publishedCatalogOverridesYamlTagsAndCarriesWritable() {
+        when(telemetryLink.health())
+                .thenReturn(new EdgeLinkHealth(EdgeLinkHealth.CONNECTED, 0, null));
+        when(commandLink.isConnected()).thenReturn(true);
+        when(session.isAvailable()).thenReturn(true);
+
+        OpcUaProperties.TagConfig central =
+                tag("INDORE", "LINE-02", "VALVE_201_POS", "nsu=http://example/;i=5", 0.25);
+        central.setWritable(false);
+        catalog.publish(List.of(central));
+
+        EdgeStatusSnapshot snap = service.snapshot();
+
+        assertThat(snap.tags())
+                .singleElement()
+                .satisfies(
+                        row -> {
+                            assertThat(row.tagCode()).isEqualTo("VALVE_201_POS");
+                            assertThat(row.deadband()).isEqualTo(0.25);
+                            assertThat(row.writable()).isFalse();
+                        });
+    }
+
+    @Test
+    void configBlockCombinesSyncAndApplyViews() {
+        when(telemetryLink.health())
+                .thenReturn(new EdgeLinkHealth(EdgeLinkHealth.CONNECTED, 0, null));
+        when(commandLink.isConnected()).thenReturn(true);
+        when(session.isAvailable()).thenReturn(true);
+
+        Instant syncedAt = Instant.parse("2026-01-15T10:00:00Z");
+        when(configSync.syncView())
+                .thenReturn(
+                        new EdgeSyncView(
+                                9L, "hash-9", EdgeSyncView.SOURCE_CENTRAL, syncedAt, syncedAt, null));
+        applyState.set(
+                new EdgeApplyView(
+                        9L,
+                        "hash-9",
+                        syncedAt,
+                        List.of(
+                                new EdgeApplyView.RejectedTag(
+                                        "LINE-01", "BAD_ADDR", "ns=3;i=7", "invalid node id syntax")),
+                        1,
+                        3));
+
+        EdgeStatusSnapshot.ConfigStatus config = service.snapshot().config();
+
+        assertThat(config.syncEnabled()).isFalse();
+        assertThat(config.siteId()).isEqualTo("INDORE");
+        assertThat(config.source()).isEqualTo(EdgeSyncView.SOURCE_CENTRAL);
+        assertThat(config.fetchedVersion()).isEqualTo(9L);
+        assertThat(config.appliedVersion()).isEqualTo(9L);
+        assertThat(config.activeTagCount()).isEqualTo(3);
+        assertThat(config.rejectedCount()).isEqualTo(1);
+        assertThat(config.rejected()).singleElement().extracting(EdgeApplyView.RejectedTag::tagCode)
+                .isEqualTo("BAD_ADDR");
     }
 
     private static OpcUaProperties.TagConfig tag(

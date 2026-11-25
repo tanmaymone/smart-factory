@@ -50,6 +50,11 @@ public class OpcUaLinkHealth {
                                 prev.lastHeartbeatAt()));
     }
 
+    /** Intentionally idle: no desired tags, so DISCONNECTED is expected, not a fault. */
+    public void markIdle() {
+        state.updateAndGet(prev -> new Snapshot(DISCONNECTED, "IDLE", null, prev.lastHeartbeatAt()));
+    }
+
     public void markStopped() {
         state.updateAndGet(
                 prev -> new Snapshot(DISCONNECTED, "STOPPED", prev.lastError(), prev.lastHeartbeatAt()));
