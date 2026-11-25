@@ -35,6 +35,9 @@ public final class AccessRoute {
         if (isAccess(normalizedPath)) {
             return Optional.of(AccessAction.ACTOR_ADMIN);
         }
+        if ("/api/onboarding/probe".equals(normalizedPath) && "POST".equals(normalizedMethod)) {
+            return Optional.of(AccessAction.ONBOARDING_PROBE);
+        }
         if (startsWith(normalizedPath, "/api/telemetry")
                 || startsWith(normalizedPath, "/api/stream")
                 || startsWith(normalizedPath, "/actuator")) {

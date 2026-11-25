@@ -65,6 +65,9 @@ app:
     max-records: ${EDGE_BUFFER_MAX_RECORDS:10000}
     drain-batch-size: ${EDGE_BUFFER_DRAIN_BATCH:32}
     drain-pause-ms: ${EDGE_BUFFER_DRAIN_PAUSE_MS:10}
+  onboarding:
+    # Plant-LAN port oracle: stays off unless dev or the Prosys protocol tests opt in. M4.2 closes it.
+    probe-enabled: false
   mqtt:
     # Full URL wins. On a plant PC this is the cloud broker; the laptop dev compose uses tcp://mosquitto:1883.
     broker-url: ${MQTT_BROKER_URL:tcp://localhost:${MQTT_PORT:1883}}

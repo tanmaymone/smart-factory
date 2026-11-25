@@ -38,7 +38,7 @@ public final class AccessPolicy {
         ActorRole role = actor.role();
         boolean allowed =
                 switch (action) {
-                    case REGISTRY_WRITE, ACTOR_ADMIN -> role == ActorRole.ONBOARDING_ADMIN;
+                    case REGISTRY_WRITE, ACTOR_ADMIN, ONBOARDING_PROBE -> role == ActorRole.ONBOARDING_ADMIN;
                     case COMMAND_WRITE -> role == ActorRole.OPERATOR || role == ActorRole.SUPERVISOR;
                     case OPEN -> true;
                 };

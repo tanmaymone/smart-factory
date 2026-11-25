@@ -3,6 +3,9 @@ package com.factory.edge.opcua;
 import static java.util.Objects.requireNonNullElse;
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint;
 
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -31,6 +34,9 @@ final class OpcUaClientFactory {
 
     private static final Logger log = LoggerFactory.getLogger(OpcUaClientFactory.class);
 
+    static final String PROBE_NONE = "None";
+    static final String PROBE_SIGN_AND_ENCRYPT = "SignAndEncrypt";
+
     private OpcUaClientFactory() {}
 
     static OpcUaClient create(OpcUaProperties properties) {
@@ -49,12 +55,86 @@ final class OpcUaClientFactory {
         String configuredUrl = properties.getEndpointUrl();
         long timeoutMs = properties.getRequestTimeoutMs();
         EndpointDescription rewritten = discoverAndRewrite(configuredUrl, timeoutMs, security);
+        return buildClient(rewritten, configuredUrl, pki, timeoutMs);
+    }
+
+    /**
+     * Onboarding-probe overload. The request security mode is a per-call argument, so a {@code None}
+     * probe on a SignAndEncrypt edge still selects None; the live subscription client keeps reading
+     * {@code app.opcua.security.*}. Identity is always Anonymous, {@code pkiDir} is
+     * {@code app.opcua.security.pki-dir} and never a request field, and discovery already ran on the
+     * probe I/O worker, so this overload does not call {@link DiscoveryClient#getEndpoints}.
+     */
+    static OpcUaClient createForProbe(
+            EndpointDescription rewritten,
+            String canonicalDialUrl,
+            String securityMode,
+            String pkiDir,
+            long timeoutMs) {
+        OpcUaPkiMaterial.Loaded pki = null;
+        if (PROBE_SIGN_AND_ENCRYPT.equals(securityMode)) {
+            pki = OpcUaPkiMaterial.load(pkiDir);
+        } else if (!PROBE_NONE.equals(securityMode)) {
+            throw new IllegalStateException("Unsupported probe securityMode=" + securityMode);
+        }
+        return buildClient(rewritten, canonicalDialUrl, pki, timeoutMs);
+    }
+
+    /**
+     * Runs on an {@code opcua-probe-io} worker: a blocking Netty or JDK resolve inside discovery
+     * stays off the probe thread, which only waits in {@code Future.get(remainingMillis())}.
+     */
+    static EndpointDescription discoverAndRewriteForProbe(
+            String canonicalDialUrl, String securityMode, long timeoutMs) throws Exception {
+        List<EndpointDescription> endpoints =
+                DiscoveryClient.getEndpoints(
+                                canonicalDialUrl,
+                                builder -> {
+                                    builder.setConnectTimeout(uint(timeoutArg(timeoutMs)));
+                                    builder.setAcknowledgeTimeout(uint(timeoutArg(timeoutMs)));
+                                })
+                        .get();
+        EndpointDescription selected =
+                PROBE_SIGN_AND_ENCRYPT.equals(securityMode)
+                        ? selectBasic256Sha256SignAndEncrypt(endpoints, canonicalDialUrl)
+                        : selectAnonymousNone(endpoints, canonicalDialUrl);
+        EndpointDescription rewritten = EndpointRewriter.rewrite(selected, canonicalDialUrl);
+        log.info(
+                "OPC UA probe endpoints configured={} advertised={} rewritten={} mode={}",
+                canonicalDialUrl,
+                selected.getEndpointUrl(),
+                rewritten.getEndpointUrl(),
+                securityMode);
+        return rewritten;
+    }
+
+    /** Null when SignAndEncrypt can be attempted. Checked after tryLock, before DNS and TCP. */
+    static String probePkiFailure(String pkiDir) {
+        if (pkiDir == null || pkiDir.isBlank()) {
+            return "app.opcua.security.pki-dir is required for SignAndEncrypt";
+        }
+        try {
+            Path path = Path.of(pkiDir).toAbsolutePath().normalize();
+            if (!Files.isDirectory(path) || !Files.isReadable(path)) {
+                return "app.opcua.security.pki-dir must be a readable directory: " + path;
+            }
+            return null;
+        } catch (InvalidPathException e) {
+            return "app.opcua.security.pki-dir is not a usable path: " + pkiDir;
+        }
+    }
+
+    private static OpcUaClient buildClient(
+            EndpointDescription rewritten,
+            String configuredUrl,
+            OpcUaPkiMaterial.Loaded pki,
+            long timeoutMs) {
         try {
             OpcUaClientConfigBuilder builder =
                     OpcUaClientConfig.builder()
                             .setEndpoint(rewritten)
                             .setIdentityProvider(AnonymousProvider.INSTANCE)
-                            .setRequestTimeout(uint((int) timeoutMs));
+                            .setRequestTimeout(uint(timeoutArg(timeoutMs)));
             if (pki != null) {
                 builder.setKeyPair(pki.keyPair())
                         .setCertificate(pki.certificate())
@@ -63,8 +143,8 @@ final class OpcUaClientFactory {
             return OpcUaClient.create(
                     builder.build(),
                     transport -> {
-                        transport.setConnectTimeout(uint((int) timeoutMs));
-                        transport.setAcknowledgeTimeout(uint((int) timeoutMs));
+                        transport.setConnectTimeout(uint(timeoutArg(timeoutMs)));
+                        transport.setAcknowledgeTimeout(uint(timeoutArg(timeoutMs)));
                     });
         } catch (IllegalStateException e) {
             closeQuietly(pki);
@@ -74,6 +154,10 @@ final class OpcUaClientFactory {
             throw new OpcUaProbeException(
                     "OPC UA client create failed for " + configuredUrl + ": " + e.getMessage(), e);
         }
+    }
+
+    private static int timeoutArg(long timeoutMs) {
+        return (int) Math.max(1L, Math.min(timeoutMs, Integer.MAX_VALUE));
     }
 
     static void connect(OpcUaClient client, OpcUaProperties properties) {

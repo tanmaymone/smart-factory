@@ -4,5 +4,6 @@ public enum AccessAction {
     OPEN,
     REGISTRY_WRITE,
     COMMAND_WRITE,
-    ACTOR_ADMIN
+    ACTOR_ADMIN,
+    ONBOARDING_PROBE
 }

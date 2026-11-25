@@ -22,6 +22,8 @@ class AccessRouteTest {
                 .contains(AccessAction.REGISTRY_WRITE);
         assertThat(AccessRoute.classify("POST", "/api/commands")).contains(AccessAction.COMMAND_WRITE);
         assertThat(AccessRoute.classify("GET", "/api/access/actors")).contains(AccessAction.ACTOR_ADMIN);
+        assertThat(AccessRoute.classify("POST", "/api/onboarding/probe"))
+                .contains(AccessAction.ONBOARDING_PROBE);
     }
 
     @Test
@@ -30,12 +32,18 @@ class AccessRouteTest {
         assertThat(AccessRoute.classify("POST", "/api//registry/sites")).contains(AccessAction.REGISTRY_WRITE);
         assertThat(AccessRoute.classify("POST", "/api/commands/")).contains(AccessAction.COMMAND_WRITE);
         assertThat(AccessRoute.classify("GET", "/api/access/actors/")).contains(AccessAction.ACTOR_ADMIN);
+        assertThat(AccessRoute.classify("POST", "/api/onboarding/probe/"))
+                .contains(AccessAction.ONBOARDING_PROBE);
+        assertThat(AccessRoute.classify("POST", "/api//onboarding/probe"))
+                .contains(AccessAction.ONBOARDING_PROBE);
     }
 
     @Test
     void leavesUnmatchedPathsOpenToSpring() {
         assertThat(AccessRoute.classify("POST", "/api/does-not-exist")).isEqualTo(Optional.empty());
         assertThat(AccessRoute.classify("DELETE", "/api/commands")).isEqualTo(Optional.empty());
-        assertThat(AccessRoute.classify("POST", "/api/onboarding/probe")).isEqualTo(Optional.empty());
+        assertThat(AccessRoute.classify("GET", "/api/onboarding/probe")).isEqualTo(Optional.empty());
+        assertThat(AccessRoute.classify("POST", "/api/onboarding")).isEqualTo(Optional.empty());
+        assertThat(AccessRoute.classify("POST", "/api/onboarding/probe/extra")).isEqualTo(Optional.empty());
     }
 }

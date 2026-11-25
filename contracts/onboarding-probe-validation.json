@@ -1,0 +1,402 @@
+[
+  {
+    "name": "missing-endpointUrl",
+    "body": { "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "null-endpointUrl",
+    "body": { "endpointUrl": null, "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "blank-endpointUrl",
+    "body": { "endpointUrl": "", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "empty-authority-prefix",
+    "body": { "endpointUrl": "opc.tcp://", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "opaque-uri",
+    "body": { "endpointUrl": "opc.tcp:localhost:4840", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "empty-authority-path",
+    "body": { "endpointUrl": "opc.tcp:///OPCUA/SimulationServer", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "non-numeric-port",
+    "body": { "endpointUrl": "opc.tcp://host:abc", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "trailing-colon",
+    "body": { "endpointUrl": "opc.tcp://localhost:", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "ipv6-missing-colon",
+    "body": { "endpointUrl": "opc.tcp://[::1]4840", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "ipv6-trailing-colon",
+    "body": { "endpointUrl": "opc.tcp://[::1]:", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "port-zero",
+    "body": { "endpointUrl": "opc.tcp://localhost:0/OPCUA/SimulationServer", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "port-too-large",
+    "body": { "endpointUrl": "opc.tcp://localhost:70000/OPCUA/SimulationServer", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "port-plus-prefix",
+    "body": { "endpointUrl": "opc.tcp://localhost:+80/OPCUA/SimulationServer", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "port-leading-zero",
+    "body": { "endpointUrl": "opc.tcp://localhost:0080/OPCUA/SimulationServer", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "port-non-ascii-digit",
+    "body": { "endpointUrl": "opc.tcp://localhost:８0/OPCUA/SimulationServer", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "bracket-interior-invalid",
+    "body": { "endpointUrl": "opc.tcp://[hello]:4840", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "host-too-long",
+    "body": {
+      "endpointUrl": "opc.tcp://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:4840",
+      "securityMode": "None"
+    },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "userinfo-rejected",
+    "body": { "endpointUrl": "opc.tcp://user:pass@localhost:53530", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "query-rejected",
+    "body": { "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer?foo=bar", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "fragment-rejected",
+    "body": { "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer#frag", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "empty-query-rejected",
+    "body": { "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer?", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "empty-fragment-rejected",
+    "body": { "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer#", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "leading-space",
+    "body": { "endpointUrl": " opc.tcp://localhost:53530", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "trailing-space",
+    "body": { "endpointUrl": "opc.tcp://localhost:53530 ", "securityMode": "None" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" }
+    ]
+  },
+  {
+    "name": "missing-securityMode",
+    "body": { "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer" },
+    "status": 422,
+    "code": "SECURITY_MODE_UNSUPPORTED",
+    "message": "securityMode must be None or SignAndEncrypt",
+    "fieldErrors": [
+      { "field": "securityMode", "message": "securityMode must be None or SignAndEncrypt" }
+    ]
+  },
+  {
+    "name": "null-securityMode",
+    "body": { "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer", "securityMode": null },
+    "status": 422,
+    "code": "SECURITY_MODE_UNSUPPORTED",
+    "message": "securityMode must be None or SignAndEncrypt",
+    "fieldErrors": [
+      { "field": "securityMode", "message": "securityMode must be None or SignAndEncrypt" }
+    ]
+  },
+  {
+    "name": "blank-securityMode",
+    "body": { "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer", "securityMode": "" },
+    "status": 422,
+    "code": "SECURITY_MODE_UNSUPPORTED",
+    "message": "securityMode must be None or SignAndEncrypt",
+    "fieldErrors": [
+      { "field": "securityMode", "message": "securityMode must be None or SignAndEncrypt" }
+    ]
+  },
+  {
+    "name": "Sign-unsupported",
+    "body": { "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer", "securityMode": "Sign" },
+    "status": 422,
+    "code": "SECURITY_MODE_UNSUPPORTED",
+    "message": "securityMode must be None or SignAndEncrypt",
+    "fieldErrors": [
+      { "field": "securityMode", "message": "securityMode must be None or SignAndEncrypt" }
+    ]
+  },
+  {
+    "name": "none-lowercase",
+    "body": { "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer", "securityMode": "none" },
+    "status": 422,
+    "code": "SECURITY_MODE_UNSUPPORTED",
+    "message": "securityMode must be None or SignAndEncrypt",
+    "fieldErrors": [
+      { "field": "securityMode", "message": "securityMode must be None or SignAndEncrypt" }
+    ]
+  },
+  {
+    "name": "NONE-uppercase",
+    "body": { "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer", "securityMode": "NONE" },
+    "status": 422,
+    "code": "SECURITY_MODE_UNSUPPORTED",
+    "message": "securityMode must be None or SignAndEncrypt",
+    "fieldErrors": [
+      { "field": "securityMode", "message": "securityMode must be None or SignAndEncrypt" }
+    ]
+  },
+  {
+    "name": "signAndEncrypt-camel",
+    "body": { "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer", "securityMode": "signAndEncrypt" },
+    "status": 422,
+    "code": "SECURITY_MODE_UNSUPPORTED",
+    "message": "securityMode must be None or SignAndEncrypt",
+    "fieldErrors": [
+      { "field": "securityMode", "message": "securityMode must be None or SignAndEncrypt" }
+    ]
+  },
+  {
+    "name": "nope-mode",
+    "body": { "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer", "securityMode": "nope" },
+    "status": 422,
+    "code": "SECURITY_MODE_UNSUPPORTED",
+    "message": "securityMode must be None or SignAndEncrypt",
+    "fieldErrors": [
+      { "field": "securityMode", "message": "securityMode must be None or SignAndEncrypt" }
+    ]
+  },
+  {
+    "name": "securityMode-string-1",
+    "body": { "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer", "securityMode": "1" },
+    "status": 422,
+    "code": "SECURITY_MODE_UNSUPPORTED",
+    "message": "securityMode must be None or SignAndEncrypt",
+    "fieldErrors": [
+      { "field": "securityMode", "message": "securityMode must be None or SignAndEncrypt" }
+    ]
+  },
+  {
+    "name": "nodeIds-limit",
+    "body": {
+      "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer",
+      "securityMode": "None",
+      "nodeIds": [
+        "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10",
+        "a11", "a12", "a13", "a14", "a15", "a16", "a17", "a18", "a19", "a20",
+        "a21", "a22", "a23", "a24", "a25", "a26", "a27", "a28", "a29", "a30",
+        "a31", "a32", "a33"
+      ]
+    },
+    "status": 422,
+    "code": "NODE_IDS_LIMIT_EXCEEDED",
+    "message": "nodeIds accepts at most 32 entries",
+    "fieldErrors": [
+      { "field": "nodeIds", "message": "nodeIds accepts at most 32 entries" }
+    ]
+  },
+  {
+    "name": "nodeId-too-long",
+    "body": {
+      "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer",
+      "securityMode": "None",
+      "nodeIds": [
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ]
+    },
+    "status": 422,
+    "code": "NODE_ID_TOO_LONG",
+    "message": "nodeIds entries must be at most 512 characters",
+    "fieldErrors": [
+      { "field": "nodeIds", "message": "nodeIds entries must be at most 512 characters" }
+    ]
+  },
+  {
+    "name": "bad-url-and-mode",
+    "body": { "endpointUrl": "opc.tcp://", "securityMode": "none" },
+    "status": 422,
+    "code": "ENDPOINT_URL_INVALID",
+    "message": "endpointUrl must be an opc.tcp URI with a host and a valid port",
+    "fieldErrors": [
+      { "field": "endpointUrl", "message": "endpointUrl must be an opc.tcp URI with a host and a valid port" },
+      { "field": "securityMode", "message": "securityMode must be None or SignAndEncrypt" }
+    ]
+  },
+  {
+    "name": "limit-and-too-long",
+    "body": {
+      "endpointUrl": "opc.tcp://localhost:53530/OPCUA/SimulationServer",
+      "securityMode": "None",
+      "nodeIds": [
+        "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10",
+        "a11", "a12", "a13", "a14", "a15", "a16", "a17", "a18", "a19", "a20",
+        "a21", "a22", "a23", "a24", "a25", "a26", "a27", "a28", "a29", "a30",
+        "a31", "a32",
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ]
+    },
+    "status": 422,
+    "code": "NODE_IDS_LIMIT_EXCEEDED",
+    "message": "nodeIds accepts at most 32 entries",
+    "fieldErrors": [
+      { "field": "nodeIds", "message": "nodeIds accepts at most 32 entries" },
+      { "field": "nodeIds", "message": "nodeIds entries must be at most 512 characters" }
+    ]
+  }
+]
