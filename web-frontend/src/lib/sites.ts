@@ -1,12 +1,14 @@
 export type LineInfo = {
   id: string;
   name: string;
+  lifecycle?: "DRAFT" | "VERIFIED" | "ACTIVE";
 };
 
 export type SiteInfo = {
   id: string;
   name: string;
   timezone: string;
+  lifecycle?: "DRAFT" | "VERIFIED" | "ACTIVE";
   lines: LineInfo[];
 };
 
@@ -15,16 +17,18 @@ export const SITE_CATALOG: SiteInfo[] = [
     id: "INDORE",
     name: "Indore Plant",
     timezone: "Asia/Kolkata",
+    lifecycle: "ACTIVE",
     lines: [
-      { id: "LINE-01", name: "Reactor Line 1" },
-      { id: "LINE-02", name: "Packaging Line" },
+      { id: "LINE-01", name: "Reactor Line 1", lifecycle: "ACTIVE" },
+      { id: "LINE-02", name: "Packaging Line", lifecycle: "ACTIVE" },
     ],
   },
   {
     id: "PUNE",
     name: "Pune Plant",
     timezone: "Asia/Kolkata",
-    lines: [{ id: "LINE-01", name: "Reactor Line 1" }],
+    lifecycle: "ACTIVE",
+    lines: [{ id: "LINE-01", name: "Reactor Line 1", lifecycle: "ACTIVE" }],
   },
 ];
 
@@ -32,7 +36,7 @@ export const DEFAULT_SITE_ID = "INDORE";
 export const DEFAULT_LINE_ID = "LINE-01";
 
 export function normalizeId(value: string | null | undefined): string {
-  return (value ?? "").trim().toUpperCase();
+  return (value ?? "").trim();
 }
 
 export type Selection = {

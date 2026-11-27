@@ -1,6 +1,10 @@
 export type AlarmSeverity = "NONE" | "WARNING" | "CRITICAL";
 export type AlarmDirection = "LOW" | "HIGH" | null;
 export type Quality = "GOOD" | "BAD" | "UNCERTAIN" | string;
+export type ProbeQuality = "GOOD" | "BAD" | "UNREACHABLE";
+export type RegistryLifecycle = "DRAFT" | "VERIFIED" | "ACTIVE";
+export type SiteStatus = "ONLINE" | "DEGRADED" | "OFFLINE";
+export type SecurityMode = "None" | "SignAndEncrypt";
 
 export type Protocol = "OPC_UA" | "S7" | "MODBUS_TCP" | "BACNET_IP";
 export type TagDataType = "FLOAT" | "INT" | "BOOLEAN" | "STRING";
@@ -58,6 +62,7 @@ export type TagMapping = {
   criticalLow: number | null;
   criticalHigh: number | null;
   interlockRuleKey: string | null;
+  lifecycle?: RegistryLifecycle;
 };
 
 export type TagMappingRequest = {
@@ -79,6 +84,89 @@ export type TagMappingRequest = {
   criticalLow: number | null;
   criticalHigh: number | null;
   interlockRuleKey: string | null;
+  lifecycle?: RegistryLifecycle;
+};
+
+export type SiteResponse = {
+  siteCode: string;
+  name: string;
+  timezone: string;
+  status?: SiteStatus;
+  lifecycle: RegistryLifecycle;
+};
+
+export type LineResponse = {
+  siteCode: string;
+  lineCode: string;
+  name: string;
+  lifecycle: RegistryLifecycle;
+};
+
+export type SiteRequest = {
+  siteCode: string;
+  name: string;
+  timezone: string;
+  lifecycle?: RegistryLifecycle;
+};
+
+export type SiteUpdateRequest = {
+  name: string;
+  timezone: string;
+  lifecycle: RegistryLifecycle;
+};
+
+export type LineRequest = {
+  siteCode: string;
+  lineCode: string;
+  name: string;
+  lifecycle?: RegistryLifecycle;
+};
+
+export type LineUpdateRequest = {
+  name: string;
+  lifecycle: RegistryLifecycle;
+};
+
+export type TagBatchRowError = { field: string; code: string; message: string };
+
+export type TagBatchRowResult = {
+  index: number;
+  tagCode: string;
+  outcome: "CREATED" | "UPDATED" | "FAILED";
+  id?: string | null;
+  errors: TagBatchRowError[];
+};
+
+export type TagBatchResponse = {
+  received: number;
+  created: number;
+  updated: number;
+  failed: number;
+  rows: TagBatchRowResult[];
+};
+
+export type OnboardingProbeRequest = {
+  securityMode: SecurityMode;
+  endpointUrl: string;
+  nodeIds?: string[];
+};
+
+export type TagDiagnostic = {
+  nodeId: string;
+  reachability?: string;
+  value?: unknown;
+  dataType?: string | null;
+  quality: ProbeQuality;
+  statusName?: string | null;
+  error?: string | null;
+};
+
+export type OnboardingProbeResponse = {
+  endpointUrl: string;
+  securityMode: string;
+  reachable: boolean;
+  error: string | null;
+  tags: TagDiagnostic[];
 };
 
 export type ConnectionStatus =
@@ -110,6 +198,7 @@ export type TelemetryRow = {
   observedDataType: string | null;
   nodeWritable: boolean | null;
   hasSample: boolean;
+  lifecycle?: RegistryLifecycle;
 };
 
 export type CommandRequest = {

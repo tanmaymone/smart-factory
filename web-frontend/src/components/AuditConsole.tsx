@@ -14,14 +14,24 @@ import {
   nextAuditPageOnFilterChange,
   patchAuditRow,
 } from "@/lib/commands";
+import { CatalogNotice } from "@/components/CatalogNotice";
 import { useSiteLineSelection } from "@/hooks/useSiteLineSelection";
+import { consoleMountState } from "@/lib/catalogSelection";
 import { connectTelemetryStream } from "@/lib/streamSession";
 import type { CommandAuditResponse, ConnectionStatus } from "@/lib/types";
 
 const PAGE_SIZE = 50;
 
 export function AuditConsole() {
-  const { selection, catalog, replaceSelection } = useSiteLineSelection();
+  const {
+    selection,
+    catalog,
+    replaceSelection,
+    catalogLoading,
+    catalogError,
+    hasValidLineSelection,
+    refreshCatalog,
+  } = useSiteLineSelection();
   const [tagCode, setTagCode] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(0);
@@ -33,6 +43,7 @@ export function AuditConsole() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (catalogLoading || catalogError || !hasValidLineSelection) return;
     const query = {
       siteId: selection.siteId,
       lineId: selection.lineId,
@@ -64,9 +75,10 @@ export function AuditConsole() {
         }
       });
     return () => controller.abort();
-  }, [selection.siteId, selection.lineId, tagCode, statusFilter, page]);
+  }, [selection.siteId, selection.lineId, tagCode, statusFilter, page, catalogLoading, catalogError, hasValidLineSelection]);
 
   useEffect(() => {
+    if (catalogLoading || catalogError || !hasValidLineSelection) return;
     const session = connectTelemetryStream(
       selection.siteId,
       selection.lineId,
@@ -83,7 +95,7 @@ export function AuditConsole() {
       },
     );
     return () => session.abort();
-  }, [selection.siteId, selection.lineId, statusFilter]);
+  }, [selection.siteId, selection.lineId, statusFilter, catalogLoading, catalogError, hasValidLineSelection]);
 
   const applyFilter = (nextTag: string, nextStatus: string) => {
     const nextPage = nextAuditPageOnFilterChange(
@@ -130,7 +142,15 @@ export function AuditConsole() {
         }}
         status={streamStatus}
       />
-
+      <CatalogNotice
+        catalogLoading={catalogLoading}
+        catalogError={catalogError}
+        hasValidLineSelection={hasValidLineSelection}
+        siteId={selection.siteId}
+        onRetry={() => void refreshCatalog()}
+      />
+      {consoleMountState({ catalogLoading, catalogError, hasValidLineSelection }) === "body" ? (
+      <>
       <AuditFilters
         tagCode={tagCode}
         status={statusFilter}
@@ -167,6 +187,8 @@ export function AuditConsole() {
           </Button>
         </div>
       </div>
+      </>
+      ) : null}
     </div>
   );
 }

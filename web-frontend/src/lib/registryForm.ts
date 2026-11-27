@@ -23,6 +23,7 @@ export function emptyRegistryForm(
     criticalLow: null,
     criticalHigh: null,
     interlockRuleKey: null,
+    lifecycle: undefined,
   };
 }
 
@@ -46,6 +47,7 @@ export function tagMappingToRequest(tag: TagMapping): TagMappingRequest {
     criticalLow: tag.criticalLow,
     criticalHigh: tag.criticalHigh,
     interlockRuleKey: tag.interlockRuleKey,
+    lifecycle: tag.lifecycle,
   };
 }
 

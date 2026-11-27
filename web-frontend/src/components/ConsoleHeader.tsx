@@ -14,6 +14,7 @@ const NAV = [
   { href: "/", label: "Live" },
   { href: "/audit", label: "Audit" },
   { href: "/registry", label: "Registry" },
+  { href: "/onboarding", label: "Onboarding" },
 ] as const;
 
 function BrandCluster({

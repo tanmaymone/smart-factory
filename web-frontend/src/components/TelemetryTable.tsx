@@ -11,16 +11,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TelemetryQualityBadge } from "@/components/TelemetryQualityBadge";
 import { TelemetryValueCell } from "@/components/TelemetryValueCell";
 import { formatDeadband, formatTimestamp } from "@/lib/format";
-import type { TelemetryRow } from "@/lib/types";
-
-function qualityVariant(quality: string | null): "emerald" | "amber" | "rose" | "slate" {
-  if (quality === "GOOD") return "emerald";
-  if (quality === "UNCERTAIN") return "amber";
-  if (quality === "BAD") return "rose";
-  return "slate";
-}
+import type { RegistryLifecycle, TelemetryRow } from "@/lib/types";
 
 function severityVariant(severity: string): "emerald" | "amber" | "rose" | "slate" {
   if (severity === "CRITICAL") return "rose";
@@ -32,9 +26,15 @@ function severityVariant(severity: string): "emerald" | "amber" | "rose" | "slat
 export function TelemetryTable({
   rows,
   onWrite,
+  siteLifecycle,
+  lineLifecycle,
+  isWriteEnabled,
 }: {
   rows: TelemetryRow[];
   onWrite?: (row: TelemetryRow) => void;
+  siteLifecycle?: RegistryLifecycle;
+  lineLifecycle?: RegistryLifecycle;
+  isWriteEnabled?: (row: TelemetryRow) => boolean;
 }) {
   return (
     <Card>
@@ -85,11 +85,11 @@ export function TelemetryTable({
                     {formatTimestamp(row.timestamp)}
                   </TableCell>
                   <TableCell>
-                    {row.quality ? (
-                      <Badge variant={qualityVariant(row.quality)}>{row.quality}</Badge>
-                    ) : (
-                      <span className="text-slate-500">—</span>
-                    )}
+                    <TelemetryQualityBadge
+                      row={row}
+                      siteLifecycle={siteLifecycle}
+                      lineLifecycle={lineLifecycle}
+                    />
                   </TableCell>
                   <TableCell className="mono font-mono tabular-nums text-slate-300">
                     {formatDeadband(row.deadband)}
@@ -98,7 +98,7 @@ export function TelemetryTable({
                     <Badge variant={severityVariant(row.severity)}>{row.severity}</Badge>
                   </TableCell>
                   <TableCell>
-                    {row.registered && row.writable ? (
+                    {row.registered && row.writable && (isWriteEnabled?.(row) ?? true) ? (
                       <Button
                         size="sm"
                         variant="secondary"

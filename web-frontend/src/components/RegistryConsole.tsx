@@ -8,7 +8,9 @@ import {
 import { RegistryTagFilters } from "@/components/registry/RegistryTagFilters";
 import { RegistryTagForm } from "@/components/registry/RegistryTagForm";
 import { RegistryTagTable } from "@/components/registry/RegistryTagTable";
+import { CatalogNotice } from "@/components/CatalogNotice";
 import { useSiteLineSelection } from "@/hooks/useSiteLineSelection";
+import { consoleMountState } from "@/lib/catalogSelection";
 import {
   createRegistryTag,
   deleteRegistryTag,
@@ -22,7 +24,15 @@ import type {
 } from "@/lib/types";
 
 export function RegistryConsole() {
-  const { selection, catalog, replaceSelection } = useSiteLineSelection();
+  const {
+    selection,
+    catalog,
+    replaceSelection,
+    catalogLoading,
+    catalogError,
+    hasValidLineSelection,
+    refreshCatalog,
+  } = useSiteLineSelection();
   const [tags, setTags] = useState<TagMapping[]>([]);
   const [protocol, setProtocol] = useState("");
   const [writableFilter, setWritableFilter] = useState<"all" | "true" | "false">(
@@ -37,6 +47,7 @@ export function RegistryConsole() {
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
+    if (catalogLoading || catalogError || !hasValidLineSelection) return;
     const controller = new AbortController();
     void listRegistryTags(
       {
@@ -65,7 +76,7 @@ export function RegistryConsole() {
         });
       });
     return () => controller.abort();
-  }, [selection.siteId, selection.lineId, protocol, writableFilter, reloadToken]);
+  }, [selection.siteId, selection.lineId, protocol, writableFilter, reloadToken, catalogLoading, catalogError, hasValidLineSelection]);
 
   const openCreate = () => {
     setFormMode("create");
@@ -140,7 +151,15 @@ export function RegistryConsole() {
         onSiteChange={(siteId) => replaceSelection(siteId, selection.lineId)}
         onLineChange={(lineId) => replaceSelection(selection.siteId, lineId)}
       />
-
+      <CatalogNotice
+        catalogLoading={catalogLoading}
+        catalogError={catalogError}
+        hasValidLineSelection={hasValidLineSelection}
+        siteId={selection.siteId}
+        onRetry={() => void refreshCatalog()}
+      />
+      {consoleMountState({ catalogLoading, catalogError, hasValidLineSelection }) === "body" ? (
+      <>
       <RegistryTagFilters
         protocol={protocol}
         writableFilter={writableFilter}
@@ -168,6 +187,8 @@ export function RegistryConsole() {
         onOpenChange={setFormOpen}
         onSubmit={(body) => void onSubmit(body)}
       />
+      </>
+      ) : null}
     </div>
   );
 }

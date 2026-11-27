@@ -19,16 +19,17 @@ describe("SF-M17 site catalog", () => {
     expect(selection.lineId).toBe("LINE-01");
   });
 
-  it("normalizes mixed-case ids before catalog matching", () => {
-    expect(normalizeId(" indore ")).toBe("INDORE");
-    const selection = resolveSelection("pune", "line-01");
+  it("trims ids and keeps case for catalog matching", () => {
+    expect(normalizeId(" indore ")).toBe("indore");
+    const selection = resolveSelection("PUNE", "LINE-01");
     expect(selection.siteId).toBe("PUNE");
     expect(selection.lineId).toBe("LINE-01");
+    expect(resolveSelection("pune", "LINE-01").siteId).toBe("INDORE");
   });
 
-  it("does not duplicate catalog entries when discovery casing differs", () => {
+  it("does not duplicate exact-case catalog entries", () => {
     const merged = mergeCatalog(SITE_CATALOG, [
-      { siteId: "indore", lineId: "line-01" },
+      { siteId: "INDORE", lineId: "LINE-01" },
       { siteId: "INDORE", lineId: "LINE-03" },
     ]);
     const indore = merged.find((site) => site.id === "INDORE");

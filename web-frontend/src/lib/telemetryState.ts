@@ -191,6 +191,7 @@ function toRow(
     observedDataType: sample?.observedDataType ?? null,
     nodeWritable: sample?.nodeWritable ?? null,
     hasSample: hasSampleValue(value),
+    lifecycle: tag?.lifecycle,
   };
 }
 

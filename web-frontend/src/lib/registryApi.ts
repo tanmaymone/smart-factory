@@ -1,5 +1,13 @@
+import { encodeRegistryPathSegment } from "@/lib/registryNormalize";
 import type {
+  LineRequest,
+  LineResponse,
+  LineUpdateRequest,
   RegistryErrorResponse,
+  SiteRequest,
+  SiteResponse,
+  SiteUpdateRequest,
+  TagBatchResponse,
   TagMapping,
   TagMappingRequest,
 } from "@/lib/types";
@@ -19,7 +27,7 @@ function bootstrapToken(): string | null {
   return trimmed;
 }
 
-function registryMutationHeaders(): HeadersInit {
+export function setupMutationHeaders(): HeadersInit {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -109,7 +117,7 @@ export async function createRegistryTag(
 > {
   const response = await fetch("/api/registry/tags", {
     method: "POST",
-    headers: registryMutationHeaders(),
+    headers: setupMutationHeaders(),
     body: JSON.stringify(body),
     signal,
     cache: "no-store",
@@ -135,7 +143,7 @@ export async function updateRegistryTag(
 > {
   const response = await fetch(`/api/registry/tags/${id}`, {
     method: "PUT",
-    headers: registryMutationHeaders(),
+    headers: setupMutationHeaders(),
     body: JSON.stringify(body),
     signal,
     cache: "no-store",
@@ -157,14 +165,9 @@ export async function deleteRegistryTag(
 ): Promise<
   { ok: true } | { ok: false; status: number; error: RegistryErrorResponse }
 > {
-  const headers: Record<string, string> = {};
-  const token = bootstrapToken();
-  if (token) {
-    headers["X-Setup-Token"] = token;
-  }
   const response = await fetch(`/api/registry/tags/${id}`, {
     method: "DELETE",
-    headers,
+    headers: setupMutationHeaders(),
     signal,
     cache: "no-store",
   });
@@ -177,4 +180,195 @@ export async function deleteRegistryTag(
     status: response.status,
     error: mutationError(response.status, payload),
   };
+}
+
+async function readJson(response: Response): Promise<unknown> {
+  return response.json().catch(() => null);
+}
+
+export async function listSites(signal?: AbortSignal): Promise<SiteResponse[]> {
+  const response = await fetch("/api/registry/sites", { signal, cache: "no-store" });
+  if (!response.ok) {
+    throw Object.assign(new Error("Failed to load sites"), {
+      ...parseRegistryError(await readJson(response)),
+      status: response.status,
+    });
+  }
+  return (await response.json()) as SiteResponse[];
+}
+
+export async function listLines(
+  siteCode?: string,
+  signal?: AbortSignal,
+): Promise<LineResponse[]> {
+  const query = siteCode ? `?siteCode=${encodeURIComponent(siteCode)}` : "";
+  const response = await fetch(`/api/registry/lines${query}`, {
+    signal,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw Object.assign(new Error("Failed to load lines"), {
+      ...parseRegistryError(await readJson(response)),
+      status: response.status,
+    });
+  }
+  return (await response.json()) as LineResponse[];
+}
+
+export async function getSite(
+  siteCode: string,
+  signal?: AbortSignal,
+): Promise<{ status: number; site: SiteResponse | null; error: RegistryErrorResponse | null }> {
+  const response = await fetch(
+    `/api/registry/sites/${encodeRegistryPathSegment(siteCode)}`,
+    { signal, cache: "no-store" },
+  );
+  const payload = await readJson(response);
+  if (response.ok) {
+    return { status: response.status, site: payload as SiteResponse, error: null };
+  }
+  return { status: response.status, site: null, error: parseRegistryError(payload) };
+}
+
+export async function getLine(
+  siteCode: string,
+  lineCode: string,
+  signal?: AbortSignal,
+): Promise<{ status: number; line: LineResponse | null; error: RegistryErrorResponse | null }> {
+  const response = await fetch(
+    `/api/registry/lines/${encodeRegistryPathSegment(siteCode)}/${encodeRegistryPathSegment(lineCode)}`,
+    { signal, cache: "no-store" },
+  );
+  const payload = await readJson(response);
+  if (response.ok) {
+    return { status: response.status, line: payload as LineResponse, error: null };
+  }
+  return { status: response.status, line: null, error: parseRegistryError(payload) };
+}
+
+export async function createSite(
+  body: SiteRequest,
+  signal?: AbortSignal,
+): Promise<
+  | { ok: true; created: boolean; site: SiteResponse }
+  | { ok: false; status: number; error: RegistryErrorResponse }
+> {
+  const response = await fetch("/api/registry/sites", {
+    method: "POST",
+    headers: setupMutationHeaders(),
+    body: JSON.stringify(body),
+    signal,
+    cache: "no-store",
+  });
+  const payload = await readJson(response);
+  if (response.status === 201 || response.status === 200) {
+    return { ok: true, created: response.status === 201, site: payload as SiteResponse };
+  }
+  return { ok: false, status: response.status, error: mutationError(response.status, payload) };
+}
+
+export async function createLine(
+  body: LineRequest,
+  signal?: AbortSignal,
+): Promise<
+  | { ok: true; created: boolean; line: LineResponse }
+  | { ok: false; status: number; error: RegistryErrorResponse }
+> {
+  const response = await fetch("/api/registry/lines", {
+    method: "POST",
+    headers: setupMutationHeaders(),
+    body: JSON.stringify(body),
+    signal,
+    cache: "no-store",
+  });
+  const payload = await readJson(response);
+  if (response.status === 201 || response.status === 200) {
+    return { ok: true, created: response.status === 201, line: payload as LineResponse };
+  }
+  return { ok: false, status: response.status, error: mutationError(response.status, payload) };
+}
+
+export async function updateSite(
+  siteCode: string,
+  body: SiteUpdateRequest,
+  signal?: AbortSignal,
+): Promise<
+  | { ok: true; site: SiteResponse }
+  | { ok: false; status: number; error: RegistryErrorResponse }
+> {
+  const response = await fetch(`/api/registry/sites/${encodeRegistryPathSegment(siteCode)}`, {
+    method: "PUT",
+    headers: setupMutationHeaders(),
+    body: JSON.stringify(body),
+    signal,
+    cache: "no-store",
+  });
+  const payload = await readJson(response);
+  if (response.ok) {
+    return { ok: true, site: payload as SiteResponse };
+  }
+  return { ok: false, status: response.status, error: mutationError(response.status, payload) };
+}
+
+export async function updateLine(
+  siteCode: string,
+  lineCode: string,
+  body: LineUpdateRequest,
+  signal?: AbortSignal,
+): Promise<
+  | { ok: true; line: LineResponse }
+  | { ok: false; status: number; error: RegistryErrorResponse }
+> {
+  const path = `/api/registry/lines/${encodeRegistryPathSegment(siteCode)}/${encodeRegistryPathSegment(lineCode)}`;
+  const response = await fetch(path, {
+    method: "PUT",
+    headers: setupMutationHeaders(),
+    body: JSON.stringify(body),
+    signal,
+    cache: "no-store",
+  });
+  const payload = await readJson(response);
+  if (response.ok) {
+    return { ok: true, line: payload as LineResponse };
+  }
+  return { ok: false, status: response.status, error: mutationError(response.status, payload) };
+}
+
+export async function importTagsBatch(
+  rows: TagMappingRequest[],
+  signal?: AbortSignal,
+): Promise<
+  | { ok: true; body: TagBatchResponse }
+  | { ok: false; status: number; body: TagBatchResponse | null; error: RegistryErrorResponse }
+> {
+  const response = await fetch("/api/registry/tags/batch", {
+    method: "POST",
+    headers: setupMutationHeaders(),
+    body: JSON.stringify(rows),
+    signal,
+    cache: "no-store",
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      body: null,
+      error: mutationError(response.status, payload),
+    };
+  }
+  const body = payload as TagBatchResponse;
+  if ((body.failed ?? 0) > 0) {
+    return {
+      ok: false,
+      status: response.status,
+      body,
+      error: {
+        code: "BATCH_ROW_FAILED",
+        message: "One or more tag rows failed",
+        fieldErrors: [],
+      },
+    };
+  }
+  return { ok: true, body };
 }

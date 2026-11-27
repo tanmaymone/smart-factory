@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { LifecycleBadge } from "@/components/onboarding/LifecycleBadge";
 import type { TagMapping } from "@/lib/types";
 
 export function RegistryTagTable({
@@ -90,6 +91,7 @@ export function RegistryTagTable({
                         {tag.tagCode}
                       </span>
                       <span className="text-xs text-slate-400">{tag.description}</span>
+                      <LifecycleBadge lifecycle={tag.lifecycle} />
                     </div>
                   </TableCell>
                   <TableCell className="mono font-mono text-slate-300">

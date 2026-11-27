@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import Link from "next/link";
 import { AlarmBanner } from "@/components/AlarmBanner";
+import { CatalogNotice } from "@/components/CatalogNotice";
 import {
   ConsoleHeader,
   ConsoleHeaderFallback,
@@ -10,94 +11,109 @@ import {
 import { TelemetryTable } from "@/components/TelemetryTable";
 import { WriteCommandModal } from "@/components/WriteCommandModal";
 import { useTelemetryStream } from "@/hooks/useTelemetryStream";
-import {
-  mergeCatalog,
-  resolveSelection,
-  SITE_CATALOG,
-  type DiscoveredPair,
-} from "@/lib/sites";
+import { useSiteLineSelection } from "@/hooks/useSiteLineSelection";
+import { consoleMountState } from "@/lib/catalogSelection";
+import { isRegistryLive } from "@/lib/registryLiveness";
 import type { TelemetryRow } from "@/lib/types";
 
 export function LiveConsole() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const [writeRow, setWriteRow] = useState<TelemetryRow | null>(null);
-
-  const rawSite = searchParams.get("siteId");
-  const rawLine = searchParams.get("lineId");
-  const selection = resolveSelection(rawSite, rawLine);
-
-  const stream = useTelemetryStream(selection.siteId, selection.lineId);
-
-  const discovered = useMemo<DiscoveredPair[]>(() => {
-    return stream.registry.map((tag) => ({
-      siteId: tag.siteId,
-      lineId: tag.lineId,
-    }));
-  }, [stream.registry]);
-
-  const catalog = useMemo(
-    () => mergeCatalog(SITE_CATALOG, discovered),
-    [discovered],
-  );
-
-  useEffect(() => {
-    if (rawSite === selection.siteId && rawLine === selection.lineId) {
-      return;
-    }
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("siteId", selection.siteId);
-    params.set("lineId", selection.lineId);
-    router.replace(`/?${params.toString()}`);
-  }, [rawSite, rawLine, selection.siteId, selection.lineId, router, searchParams]);
-
-  const replaceSelection = (siteId: string, lineId: string) => {
-    const next = resolveSelection(siteId, lineId, catalog);
-    const params = new URLSearchParams();
-    params.set("siteId", next.siteId);
-    params.set("lineId", next.lineId);
-    router.replace(`/?${params.toString()}`);
-  };
-
-  const liveWriteRow =
-    writeRow == null
-      ? null
-      : (stream.rows.find((row) => row.tagCode === writeRow.tagCode) ?? writeRow);
+  const {
+    selection,
+    catalog,
+    sites,
+    replaceSelection,
+    catalogLoading,
+    catalogError,
+    hasValidLineSelection,
+    refreshCatalog,
+  } = useSiteLineSelection();
+  const mount = consoleMountState({ catalogLoading, catalogError, hasValidLineSelection });
+  const site = sites.find((entry) => entry.id === selection.siteId);
+  const line = site?.lines.find((entry) => entry.id === selection.lineId);
+  const parentsActive = site?.lifecycle === "ACTIVE" && line?.lifecycle === "ACTIVE";
 
   return (
     <div className="flex flex-col gap-4">
       <ConsoleHeader
         title="Live Telemetry & Alarm Console"
-        subtitle={
-          <>
-            {selection.site.name} · {selection.line.name}
-          </>
-        }
+        subtitle={<>{selection.site.name} · {selection.line.name}</>}
         catalog={catalog}
         siteId={selection.siteId}
         lineId={selection.lineId}
         onSiteChange={(siteId) => replaceSelection(siteId, selection.lineId)}
         onLineChange={(lineId) => replaceSelection(selection.siteId, lineId)}
-        status={stream.status}
       />
+      <CatalogNotice
+        catalogLoading={catalogLoading}
+        catalogError={catalogError}
+        hasValidLineSelection={hasValidLineSelection}
+        siteId={selection.siteId}
+        onRetry={() => void refreshCatalog()}
+      />
+      {mount === "body" && !parentsActive ? (
+        <p className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-6 text-sm text-slate-300">
+          Pending Activation.
+          <Link className="ml-2 text-cyan-400" href={`/onboarding?siteId=${selection.siteId}&lineId=${selection.lineId}`}>
+            Open Onboarding
+          </Link>
+        </p>
+      ) : null}
+      {mount === "body" && parentsActive && site && line ? (
+        <LiveConsoleBody
+          siteId={selection.siteId}
+          lineId={selection.lineId}
+          siteLifecycle={site.lifecycle}
+          lineLifecycle={line.lifecycle}
+        />
+      ) : null}
+    </div>
+  );
+}
 
+function LiveConsoleBody({
+  siteId,
+  lineId,
+  siteLifecycle,
+  lineLifecycle,
+}: {
+  siteId: string;
+  lineId: string;
+  siteLifecycle?: "DRAFT" | "VERIFIED" | "ACTIVE";
+  lineLifecycle?: "DRAFT" | "VERIFIED" | "ACTIVE";
+}) {
+  const [writeRow, setWriteRow] = useState<TelemetryRow | null>(null);
+  const stream = useTelemetryStream(siteId, lineId);
+  const rows = useMemo(
+    () => stream.rows.filter((row) => isRegistryLive({
+      siteLifecycle,
+      lineLifecycle,
+      tagLifecycle: row.lifecycle,
+    })),
+    [stream.rows, siteLifecycle, lineLifecycle],
+  );
+  const hidden = stream.rows.length - rows.length;
+  const liveWriteRow = writeRow == null ? null : (stream.rows.find((row) => row.tagCode === writeRow.tagCode) ?? writeRow);
+  return (
+    <>
+      {hidden > 0 ? <p className="text-xs text-slate-400">{hidden} tags not activated</p> : null}
       <AlarmBanner alarms={stream.alarms} />
-      <TelemetryTable rows={stream.rows} onWrite={setWriteRow} />
-
+      <TelemetryTable
+        rows={rows}
+        siteLifecycle={siteLifecycle}
+        lineLifecycle={lineLifecycle}
+        isWriteEnabled={(row) => isRegistryLive({ siteLifecycle, lineLifecycle, tagLifecycle: row.lifecycle })}
+        onWrite={setWriteRow}
+      />
       <WriteCommandModal
         open={writeRow != null}
         row={writeRow}
-        siteId={selection.siteId}
-        lineId={selection.lineId}
+        siteId={siteId}
+        lineId={lineId}
         liveRow={liveWriteRow}
         lastCommandEvent={stream.lastCommandEvent}
-        onOpenChange={(open) => {
-          if (!open) {
-            setWriteRow(null);
-          }
-        }}
+        onOpenChange={(open) => { if (!open) setWriteRow(null); }}
       />
-    </div>
+    </>
   );
 }
 
