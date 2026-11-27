@@ -5,12 +5,14 @@ import {
   ConsoleHeader,
   ConsoleHeaderFallback,
 } from "@/components/ConsoleHeader";
+import { RegistryScopeLabelsCard } from "@/components/registry/RegistryScopeLabelsCard";
 import { RegistryTagFilters } from "@/components/registry/RegistryTagFilters";
 import { RegistryTagForm } from "@/components/registry/RegistryTagForm";
 import { RegistryTagTable } from "@/components/registry/RegistryTagTable";
 import { CatalogNotice } from "@/components/CatalogNotice";
 import { useSiteLineSelection } from "@/hooks/useSiteLineSelection";
 import { consoleMountState } from "@/lib/catalogSelection";
+import { resolveEntityLabels } from "@/lib/entityLabels";
 import {
   createRegistryTag,
   deleteRegistryTag,
@@ -45,6 +47,7 @@ export function RegistryConsole() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<RegistryErrorResponse | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const scopeLabels = resolveEntityLabels(selection.site);
 
   useEffect(() => {
     if (catalogLoading || catalogError || !hasValidLineSelection) return;
@@ -160,6 +163,12 @@ export function RegistryConsole() {
       />
       {consoleMountState({ catalogLoading, catalogError, hasValidLineSelection }) === "body" ? (
       <>
+      <RegistryScopeLabelsCard
+        siteId={selection.siteId}
+        siteLabel={scopeLabels.siteLabel}
+        lineLabel={scopeLabels.lineLabel}
+        onSaved={refreshCatalog}
+      />
       <RegistryTagFilters
         protocol={protocol}
         writableFilter={writableFilter}

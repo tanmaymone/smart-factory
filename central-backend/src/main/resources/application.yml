@@ -37,7 +37,7 @@ app:
     display-name: ${APP_BOOTSTRAP_DISPLAY_NAME:Bootstrap Admin}
   onboarding:
     # Off in production: the probe is a scanner on the plant LAN. Dev/Prosys profiles opt in.
-    probe-enabled: false
+    probe-enabled: true
     # One local edge beside Central for this onboarding path, not per-site routing.
     edge-base-url: ${EDGE_BASE_URL:http://127.0.0.1:8081}
   registry:

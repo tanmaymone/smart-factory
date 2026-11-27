@@ -41,14 +41,27 @@ export function subjectDrift(
 
 export function buildSiteUpdate(
   fresh: SiteResponse,
-  dirty: { name: boolean; timezone: boolean },
-  edited: { name: string; timezone: string },
-): { name: string; timezone: string; lifecycle: "ACTIVE" } {
-  return {
+  dirty: { name: boolean; timezone: boolean; siteLabel?: boolean; lineLabel?: boolean },
+  edited: { name: string; timezone: string; siteLabel?: string; lineLabel?: string },
+): { name: string; timezone: string; lifecycle: "ACTIVE"; siteLabel?: string; lineLabel?: string } {
+  const body: {
+    name: string;
+    timezone: string;
+    lifecycle: "ACTIVE";
+    siteLabel?: string;
+    lineLabel?: string;
+  } = {
     name: dirty.name ? edited.name : fresh.name,
     timezone: dirty.timezone ? edited.timezone : fresh.timezone,
     lifecycle: "ACTIVE",
   };
+  if (dirty.siteLabel) {
+    body.siteLabel = edited.siteLabel;
+  }
+  if (dirty.lineLabel) {
+    body.lineLabel = edited.lineLabel;
+  }
+  return body;
 }
 
 export function buildLineUpdate(

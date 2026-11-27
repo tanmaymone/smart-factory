@@ -16,6 +16,7 @@ import {
 } from "@/lib/commands";
 import { CatalogNotice } from "@/components/CatalogNotice";
 import { useSiteLineSelection } from "@/hooks/useSiteLineSelection";
+import { resolveEntityLabels } from "@/lib/entityLabels";
 import { consoleMountState } from "@/lib/catalogSelection";
 import { connectTelemetryStream } from "@/lib/streamSession";
 import type { CommandAuditResponse, ConnectionStatus } from "@/lib/types";
@@ -38,6 +39,7 @@ export function AuditConsole() {
   const [rows, setRows] = useState<CommandAuditResponse[]>([]);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const entityLabels = resolveEntityLabels(selection.site);
   const [streamStatus, setStreamStatus] =
     useState<ConnectionStatus>("connecting");
   const [loading, setLoading] = useState(false);
@@ -162,6 +164,7 @@ export function AuditConsole() {
         rows={rows}
         errorCode={errorCode}
         errorMessage={errorMessage}
+        entityLabels={entityLabels}
       />
 
       <div className="flex items-center justify-between gap-2">

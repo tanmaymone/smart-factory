@@ -67,7 +67,7 @@ class RegistryLivenessServiceTest {
         siteRegistryService.update(
                 ActorContext.anonymous(),
                 "NASHIK",
-                new SiteUpdateRequest("Nashik", "Asia/Kolkata", RegistryLifecycle.DRAFT));
+                new SiteUpdateRequest("Nashik", "Asia/Kolkata", RegistryLifecycle.DRAFT, null, null));
 
         assertThat(cache.get("NASHIK", "LINE-01", "T1")).isEmpty();
         assertThat(cache.get("NASHIK", "LINE-02", "T2")).isEmpty();

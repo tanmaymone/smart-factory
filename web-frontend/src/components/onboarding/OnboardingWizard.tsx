@@ -10,6 +10,7 @@ import { buildBatchRows } from "@/lib/onboardingBatch";
 import { isStep2Pass, postOnboardingProbe, type ParsedProbeError } from "@/lib/onboardingApi";
 import {
   applyCreateSuccess,
+  applyLabelSaveSuccess,
   applySaveSuccess,
   beginProbe,
   commitProbe,
@@ -21,6 +22,8 @@ import {
   storageKey,
   type WizardState,
 } from "@/lib/onboardingWizardState";
+import { entityLabelPatternOk, resolveEntityLabels } from "@/lib/entityLabels";
+import { saveSiteEntityLabels } from "@/lib/siteEntityLabels";
 import { createLine, createSite, getLine, getSite, importTagsBatch, listRegistryTags } from "@/lib/registryApi";
 import { isValidRegistryNaturalKey } from "@/lib/registryNaturalKey";
 import { parentsLookActive } from "@/lib/catalogSelection";
@@ -71,7 +74,23 @@ export function OnboardingWizard({
     sessionStorage.setItem(storageKey(state.siteId, state.lineId), JSON.stringify(serializeWizard(state)));
   }, [state]);
 
+  useEffect(() => {
+    const catalogSite = sites.find((entry) => entry.id === state.siteId);
+    if (!catalogSite) return;
+    setState((current) => {
+      if (current.siteLabelDirty || current.lineLabelDirty) return current;
+      const nextSiteLabel = catalogSite.siteLabel ?? current.siteLabel;
+      const nextLineLabel = catalogSite.lineLabel ?? current.lineLabel;
+      if (nextSiteLabel === current.siteLabel && nextLineLabel === current.lineLabel) return current;
+      return { ...current, siteLabel: nextSiteLabel, lineLabel: nextLineLabel };
+    });
+  }, [sites, state.siteId]);
+
   const locked = busy != null;
+  const stepEntityLabels = resolveEntityLabels({
+    siteLabel: state.siteLabel,
+    lineLabel: state.lineLabel,
+  });
   const smoke = useOnboardingSmokeStream(smokeOn, state.siteId, state.lineId, state.smokeGeneration);
 
   const createParent = async (which: "site" | "line") => {
@@ -79,12 +98,20 @@ export function OnboardingWizard({
       generation: state.wizardGeneration,
       siteNameRevision: state.siteNameEditRevision,
       timezoneRevision: state.siteTimezoneEditRevision,
+      siteLabelRevision: state.siteLabelEditRevision,
+      lineLabelRevision: state.lineLabelEditRevision,
       lineRevision: state.lineNameEditRevision,
     };
     const code = which === "site" ? state.siteId : state.lineId;
     if (!isValidRegistryNaturalKey(code)) {
       setNotice("Use a site or line code that matches the edge site id pattern.");
       return;
+    }
+    if (which === "site") {
+      if (!entityLabelPatternOk(state.siteLabel) || !entityLabelPatternOk(state.lineLabel)) {
+        setNotice("Choose valid display words (2–24 letters; spaces or hyphens only).");
+        return;
+      }
     }
     setBusy("create");
     const existing = which === "site" ? await getSite(code) : await getLine(state.siteId, code);
@@ -100,7 +127,14 @@ export function OnboardingWizard({
       return;
     }
     const created = which === "site"
-      ? await createSite({ siteCode: state.siteId.trim(), name: state.siteName, timezone: state.siteTimezone, lifecycle: "DRAFT" })
+      ? await createSite({
+          siteCode: state.siteId.trim(),
+          name: state.siteName,
+          timezone: state.siteTimezone,
+          lifecycle: "DRAFT",
+          siteLabel: state.siteLabel.trim(),
+          lineLabel: state.lineLabel.trim(),
+        })
       : await createLine({ siteCode: state.siteId.trim(), lineCode: state.lineId.trim(), name: state.lineName, lifecycle: "DRAFT" });
     setBusy(null);
     if (!created.ok) {
@@ -115,6 +149,36 @@ export function OnboardingWizard({
     setState((current) => applyCreateSuccess(current, which, captured));
     await refreshCatalog();
     replaceSelection(state.siteId, state.lineId);
+  };
+
+  const saveSiteLabels = async () => {
+    const catalogSite = sites.find((entry) => entry.id === state.siteId);
+    if (!catalogSite) {
+      setNotice("Create or select a site before saving display names.");
+      return;
+    }
+    if (!entityLabelPatternOk(state.siteLabel) || !entityLabelPatternOk(state.lineLabel)) {
+      setNotice("Choose valid display words (2–24 letters; spaces or hyphens only).");
+      return;
+    }
+    const captured = {
+      generation: state.wizardGeneration,
+      siteLabelRevision: state.siteLabelEditRevision,
+      lineLabelRevision: state.lineLabelEditRevision,
+    };
+    setBusy("save");
+    const saved = await saveSiteEntityLabels(state.siteId, state.siteLabel, state.lineLabel, {
+      name: state.siteNameDirty ? state.siteName : undefined,
+      timezone: state.siteTimezoneDirty ? state.siteTimezone : undefined,
+    });
+    setBusy(null);
+    if (!saved.ok) {
+      setNotice(saved.message);
+      return;
+    }
+    setState((current) => applyLabelSaveSuccess(current, captured));
+    await refreshCatalog();
+    setNotice("Display names saved.");
   };
 
   const probeConnection = async () => {
@@ -193,16 +257,18 @@ export function OnboardingWizard({
 
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <OnboardingStepper step={state.step} disabled={locked} />
+      <OnboardingStepper step={state.step} disabled={locked} entityLabels={stepEntityLabels} />
       {notice ? <p className="text-sm text-amber-300">{notice}</p> : null}
       <ProbeErrorAlert error={probeError} />
       <OnboardingStepBody
         state={state}
         locked={locked}
         sampleCount={Object.keys(smoke.tags).length}
+        sites={sites}
         setState={setState}
         setNotice={setNotice}
         onCreate={(which) => void createParent(which)}
+        onSaveSiteLabels={() => void saveSiteLabels()}
         onProbe={() => void probeConnection()}
         onSave={() => void saveTags()}
         onActivate={(allowBad) => void activate(allowBad)}

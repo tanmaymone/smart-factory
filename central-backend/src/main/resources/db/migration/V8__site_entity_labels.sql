@@ -1,0 +1,3 @@
+ALTER TABLE sites
+    ADD COLUMN site_label VARCHAR(24) NOT NULL DEFAULT 'Site',
+    ADD COLUMN line_label VARCHAR(24) NOT NULL DEFAULT 'Line';

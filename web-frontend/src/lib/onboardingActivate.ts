@@ -11,6 +11,7 @@ import {
 } from "@/lib/onboardingActivation";
 import { isStep2Pass, postOnboardingProbe } from "@/lib/onboardingApi";
 import { fanOutDiagnostics, foldProbeChunks, subjectsFromRows, type ProbeRow } from "@/lib/onboardingProbe";
+import { resolveEntityLabels } from "@/lib/entityLabels";
 import { getLine, getSite, listRegistryTags, updateLine, updateSite, updateRegistryTag } from "@/lib/registryApi";
 import type { TagMapping } from "@/lib/types";
 import type { WizardState } from "@/lib/onboardingWizardState";
@@ -32,14 +33,22 @@ export async function runActivation(hooks: ActivateHooks): Promise<{ ok: boolean
   if (blocked) return { ok: false, message: blocked };
   if (hooks.runGeneration !== hooks.currentGeneration()) return { ok: false, message: "Activation cancelled." };
 
+  const labels = resolveEntityLabels({
+    siteLabel: hooks.state.siteLabel,
+    lineLabel: hooks.state.lineLabel,
+  });
   const siteGet = await getSite(hooks.state.siteId);
   if (hooks.runGeneration !== hooks.currentGeneration()) return { ok: false, message: "Activation cancelled." };
-  if (siteGet.status === 404 || !siteGet.site) return { ok: false, message: "Site was not found.", step: 1 };
+  if (siteGet.status === 404 || !siteGet.site) {
+    return { ok: false, message: `${labels.siteLabel} was not found.`, step: 1 };
+  }
   if (siteGet.status >= 400) return { ok: false, message: siteGet.error?.message ?? "Site lookup failed." };
 
   const lineGet = await getLine(hooks.state.siteId, hooks.state.lineId);
   if (hooks.runGeneration !== hooks.currentGeneration()) return { ok: false, message: "Activation cancelled." };
-  if (lineGet.status === 404 || !lineGet.line) return { ok: false, message: "Line was not found.", step: 1 };
+  if (lineGet.status === 404 || !lineGet.line) {
+    return { ok: false, message: `${labels.lineLabel} was not found.`, step: 1 };
+  }
 
   const tags = await listRegistryTags({ siteId: hooks.state.siteId, lineId: hooks.state.lineId });
   if (hooks.runGeneration !== hooks.currentGeneration()) return { ok: false, message: "Activation cancelled." };
@@ -65,12 +74,23 @@ export async function runActivation(hooks: ActivateHooks): Promise<{ ok: boolean
   if (!again.ok) return { ok: false, message: again.reason, step: 3 };
 
   let parentPutRan = false;
-  const siteDirty = hooks.state.siteNameDirty || hooks.state.siteTimezoneDirty;
+  const siteDirty =
+    hooks.state.siteNameDirty
+    || hooks.state.siteTimezoneDirty
+    || hooks.state.siteLabelDirty
+    || hooks.state.lineLabelDirty;
   if (!shouldSkipParentPut(freshSite.site.lifecycle, siteDirty)) {
     const updated = await updateSite(hooks.state.siteId, buildSiteUpdate(freshSite.site, {
       name: hooks.state.siteNameDirty,
       timezone: hooks.state.siteTimezoneDirty,
-    }, { name: hooks.state.siteName, timezone: hooks.state.siteTimezone }));
+      siteLabel: hooks.state.siteLabelDirty,
+      lineLabel: hooks.state.lineLabelDirty,
+    }, {
+      name: hooks.state.siteName,
+      timezone: hooks.state.siteTimezone,
+      siteLabel: hooks.state.siteLabel.trim(),
+      lineLabel: hooks.state.lineLabel.trim(),
+    }));
     if (hooks.runGeneration !== hooks.currentGeneration()) return { ok: false, message: "Activation cancelled." };
     if (!updated.ok) return { ok: false, message: updated.error.message };
     parentPutRan = true;

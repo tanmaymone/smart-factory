@@ -1,17 +1,22 @@
+import { stepOneTitle, type ResolvedEntityLabels } from "@/lib/entityLabels";
 import { cn } from "@/lib/utils";
 
-const LABELS = ["Site & line", "Endpoint", "Tags", "Smoke"] as const;
+const TAIL_LABELS = ["Endpoint", "Tags", "Smoke"] as const;
 
 export function OnboardingStepper({
   step,
   disabled,
+  entityLabels,
 }: {
   step: 1 | 2 | 3 | 4;
   disabled?: boolean;
+  entityLabels: ResolvedEntityLabels;
 }) {
+  const labels = [stepOneTitle(entityLabels), ...TAIL_LABELS];
+
   return (
     <ol className="flex flex-wrap gap-2">
-      {LABELS.map((label, index) => {
+      {labels.map((label, index) => {
         const number = (index + 1) as 1 | 2 | 3 | 4;
         const active = number === step;
         return (

@@ -348,6 +348,84 @@ class RegistryApiIT {
     }
 
     @Test
+    @Tag("SF-LABEL")
+    void siteEntityLabelsValidateRoundTripAndLabelOnlyPutSkipsEdgeRevision() throws Exception {
+        mockMvc.perform(post("/api/registry/sites")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"siteCode":"LABELTEST","name":"Label Plant","timezone":"Asia/Kolkata"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.siteLabel").value("Site"))
+                .andExpect(jsonPath("$.lineLabel").value("Line"));
+
+        mockMvc.perform(post("/api/registry/sites")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"siteCode":"CUSTOMLBL","name":"Custom","timezone":"Asia/Kolkata","siteLabel":"Plant","lineLabel":"Shop Floor"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.siteLabel").value("Plant"))
+                .andExpect(jsonPath("$.lineLabel").value("Shop Floor"));
+
+        mockMvc.perform(post("/api/registry/sites")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"siteCode":"BADLBL","name":"Bad","timezone":"Asia/Kolkata","siteLabel":"Plant!"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(RegistryErrorCode.VALIDATION_FAILED))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("siteLabel"));
+
+        mockMvc.perform(post("/api/registry/lines")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"siteCode":"LABELTEST","lineCode":"LINE-01","name":"Scope","lifecycle":"DRAFT"}
+                                """))
+                .andExpect(status().isCreated());
+
+        MvcResult before = mockMvc.perform(get("/api/edge/LABELTEST/config"))
+                .andExpect(status().isOk())
+                .andReturn();
+        long versionBefore =
+                objectMapper.readTree(before.getResponse().getContentAsString()).get("version").asLong();
+
+        mockMvc.perform(put("/api/registry/sites/LABELTEST")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Label Plant","timezone":"Asia/Kolkata","lifecycle":"DRAFT","siteLabel":"Facility","lineLabel":"Area"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.siteLabel").value("Facility"))
+                .andExpect(jsonPath("$.lineLabel").value("Area"));
+
+        MvcResult afterLabels = mockMvc.perform(get("/api/edge/LABELTEST/config"))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(objectMapper
+                        .readTree(afterLabels.getResponse().getContentAsString())
+                        .get("version")
+                        .asLong())
+                .isEqualTo(versionBefore);
+
+        mockMvc.perform(put("/api/registry/sites/LABELTEST")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Label Plant Renamed","timezone":"Asia/Kolkata","lifecycle":"DRAFT"}
+                                """))
+                .andExpect(status().isOk());
+
+        MvcResult afterRename = mockMvc.perform(get("/api/edge/LABELTEST/config"))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(objectMapper
+                        .readTree(afterRename.getResponse().getContentAsString())
+                        .get("version")
+                        .asLong())
+                .isGreaterThan(versionBefore);
+    }
+
+    @Test
     @Tag("SF-REGISTRY")
     void createsSiteLineAndImportsReactorBatchIdempotently() throws Exception {
         mockMvc.perform(post("/api/registry/sites")

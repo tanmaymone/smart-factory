@@ -6,4 +6,6 @@ import jakarta.validation.constraints.Size;
 public record SiteUpdateRequest(
         @NotBlank @Size(max = 255) String name,
         @NotBlank @Size(max = 64) String timezone,
-        RegistryLifecycle lifecycle) {}
+        RegistryLifecycle lifecycle,
+        String siteLabel,
+        String lineLabel) {}

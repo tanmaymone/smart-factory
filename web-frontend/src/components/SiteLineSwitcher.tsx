@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { resolveEntityLabels } from "@/lib/entityLabels";
 import type { SiteInfo } from "@/lib/sites";
 
 type Props = {
@@ -26,14 +27,15 @@ export function SiteLineSwitcher({
 }: Props) {
   const site = catalog.find((entry) => entry.id === siteId) ?? catalog[0];
   const lines = site?.lines ?? [];
+  const labels = resolveEntityLabels(site);
 
   return (
     <div className="flex flex-wrap items-end gap-3">
       <label className="flex min-w-[10rem] flex-col gap-1">
-        <span className="text-xs uppercase tracking-wide text-slate-400">Site</span>
+        <span className="text-xs uppercase tracking-wide text-slate-400">{labels.siteLabel}</span>
         <Select value={siteId} onValueChange={onSiteChange}>
-          <SelectTrigger aria-label="Site" className="w-[12rem]">
-            <SelectValue placeholder="Site" />
+          <SelectTrigger aria-label={labels.siteLabel} className="w-[12rem]">
+            <SelectValue placeholder={labels.siteLabel} />
           </SelectTrigger>
           <SelectContent>
             {catalog.map((entry) => (
@@ -46,10 +48,10 @@ export function SiteLineSwitcher({
       </label>
 
       <label className="flex min-w-[10rem] flex-col gap-1">
-        <span className="text-xs uppercase tracking-wide text-slate-400">Line</span>
+        <span className="text-xs uppercase tracking-wide text-slate-400">{labels.lineLabel}</span>
         <Select value={lineId} onValueChange={onLineChange}>
-          <SelectTrigger aria-label="Line" className="w-[12rem]">
-            <SelectValue placeholder="Line" />
+          <SelectTrigger aria-label={labels.lineLabel} className="w-[12rem]">
+            <SelectValue placeholder={labels.lineLabel} />
           </SelectTrigger>
           <SelectContent>
             {lines.map((entry) => (

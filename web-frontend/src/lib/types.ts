@@ -93,6 +93,8 @@ export type SiteResponse = {
   timezone: string;
   status?: SiteStatus;
   lifecycle: RegistryLifecycle;
+  siteLabel?: string;
+  lineLabel?: string;
 };
 
 export type LineResponse = {
@@ -107,12 +109,16 @@ export type SiteRequest = {
   name: string;
   timezone: string;
   lifecycle?: RegistryLifecycle;
+  siteLabel?: string;
+  lineLabel?: string;
 };
 
 export type SiteUpdateRequest = {
   name: string;
   timezone: string;
   lifecycle: RegistryLifecycle;
+  siteLabel?: string;
+  lineLabel?: string;
 };
 
 export type LineRequest = {

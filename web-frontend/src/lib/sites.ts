@@ -8,6 +8,8 @@ export type SiteInfo = {
   id: string;
   name: string;
   timezone: string;
+  siteLabel?: string;
+  lineLabel?: string;
   lifecycle?: "DRAFT" | "VERIFIED" | "ACTIVE";
   lines: LineInfo[];
 };

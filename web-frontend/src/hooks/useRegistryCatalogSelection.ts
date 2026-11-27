@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { listLines, listSites } from "@/lib/registryApi";
 import { normalizeLineCode, normalizeSiteCode } from "@/lib/registryNormalize";
+import { DEFAULT_LINE_LABEL, DEFAULT_SITE_LABEL } from "@/lib/entityLabels";
 import {
   resolveSelection,
   SITE_CATALOG,
@@ -13,7 +14,15 @@ import {
 } from "@/lib/sites";
 
 function toCatalog(
-  sites: { siteCode?: string; siteId?: string; name: string; timezone: string; lifecycle: SiteInfo["lifecycle"] }[],
+  sites: {
+    siteCode?: string;
+    siteId?: string;
+    name: string;
+    timezone: string;
+    siteLabel?: string;
+    lineLabel?: string;
+    lifecycle: SiteInfo["lifecycle"];
+  }[],
   lines: { siteCode: string; lineCode?: string; lineId?: string; name: string; lifecycle: LineInfo["lifecycle"] }[],
 ): SiteInfo[] {
   return sites.map((site) => {
@@ -22,6 +31,8 @@ function toCatalog(
       id,
       name: site.name,
       timezone: site.timezone,
+      siteLabel: site.siteLabel ?? DEFAULT_SITE_LABEL,
+      lineLabel: site.lineLabel ?? DEFAULT_LINE_LABEL,
       lifecycle: site.lifecycle,
       lines: lines
         .filter((line) => line.siteCode === id)

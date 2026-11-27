@@ -7,4 +7,6 @@ public record SiteRequest(
         @NotBlank @Size(max = 64) String siteCode,
         @NotBlank @Size(max = 255) String name,
         @NotBlank @Size(max = 64) String timezone,
-        RegistryLifecycle lifecycle) {}
+        RegistryLifecycle lifecycle,
+        String siteLabel,
+        String lineLabel) {}

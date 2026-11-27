@@ -29,6 +29,12 @@ public class Site {
     @Column(name = "lifecycle", length = 32, nullable = false)
     private RegistryLifecycle lifecycle;
 
+    @Column(name = "site_label", length = 24, nullable = false)
+    private String siteLabel = EntityDisplayLabel.DEFAULT_SITE;
+
+    @Column(name = "line_label", length = 24, nullable = false)
+    private String lineLabel = EntityDisplayLabel.DEFAULT_LINE;
+
     protected Site() {
     }
 
@@ -37,18 +43,37 @@ public class Site {
     }
 
     public Site(String id, String name, String timezone, SiteStatus status, RegistryLifecycle lifecycle) {
+        this(id, name, timezone, status, lifecycle, null, null);
+    }
+
+    public Site(
+            String id,
+            String name,
+            String timezone,
+            SiteStatus status,
+            RegistryLifecycle lifecycle,
+            String siteLabel,
+            String lineLabel) {
         this.id = id;
         this.name = name;
         this.timezone = timezone;
         this.status = status;
         this.lifecycle = lifecycle == null ? RegistryLifecycle.ACTIVE : lifecycle;
+        this.siteLabel = EntityDisplayLabel.normalizeSite(siteLabel);
+        this.lineLabel = EntityDisplayLabel.normalizeLine(lineLabel);
     }
 
-    public void apply(String name, String timezone, RegistryLifecycle lifecycle) {
+    public void apply(String name, String timezone, RegistryLifecycle lifecycle, String siteLabel, String lineLabel) {
         this.name = name;
         this.timezone = timezone;
         if (lifecycle != null) {
             this.lifecycle = lifecycle;
+        }
+        if (siteLabel != null) {
+            this.siteLabel = siteLabel;
+        }
+        if (lineLabel != null) {
+            this.lineLabel = lineLabel;
         }
     }
 
@@ -70,5 +95,13 @@ public class Site {
 
     public RegistryLifecycle getLifecycle() {
         return lifecycle;
+    }
+
+    public String getSiteLabel() {
+        return siteLabel;
+    }
+
+    public String getLineLabel() {
+        return lineLabel;
     }
 }

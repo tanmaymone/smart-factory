@@ -12,16 +12,20 @@ import {
 } from "@/components/ui/table";
 import { commandStatusVariant } from "@/lib/commandStatusUi";
 import { formatTimestamp } from "@/lib/format";
+import type { ResolvedEntityLabels } from "@/lib/entityLabels";
+import { entityColumnHeader } from "@/lib/entityLabels";
 import type { CommandAuditResponse } from "@/lib/types";
 
 export function AuditLogTable({
   rows,
   errorCode,
   errorMessage,
+  entityLabels,
 }: {
   rows: CommandAuditResponse[];
   errorCode?: string | null;
   errorMessage?: string | null;
+  entityLabels: ResolvedEntityLabels;
 }) {
   return (
     <Card>
@@ -39,7 +43,7 @@ export function AuditLogTable({
           <TableHeader>
             <TableRow>
               <TableHead>Timestamp</TableHead>
-              <TableHead>Site / Line</TableHead>
+              <TableHead>{entityColumnHeader(entityLabels)}</TableHead>
               <TableHead>Tag</TableHead>
               <TableHead>Requested</TableHead>
               <TableHead>Actor</TableHead>

@@ -33,12 +33,12 @@ app:
     drain-pause-ms: ${EDGE_BUFFER_DRAIN_PAUSE_MS:10}
   onboarding:
     # Plant-LAN port oracle: stays off unless dev or the Prosys protocol tests opt in. M4.2 closes it.
-    probe-enabled: false
+    probe-enabled: true
   edge:
     # OPC UA hot-reload owns the tag list. Set false only to fall back to an explicit YAML list.
     config-sync-enabled: ${EDGE_CONFIG_SYNC_ENABLED:true}
     site-id: ${EDGE_SITE_ID:INDORE}
-    central-base-url: ${CENTRAL_BASE_URL:http://localhost:8080}
+    central-base-url: ${CENTRAL_BASE_URL:http://127.0.0.1:8081/}
     config-poll-ms: ${EDGE_CONFIG_POLL_MS:15000}
     config-timeout-ms: ${EDGE_CONFIG_TIMEOUT_MS:5000}
     snapshot-path: ${EDGE_CONFIG_SNAPSHOT_PATH:./data/edge-config.json}

@@ -1,3 +1,4 @@
+import { DEFAULT_LINE_LABEL, DEFAULT_SITE_LABEL } from "@/lib/entityLabels";
 import type { ProbeSubject } from "@/lib/onboardingProbe";
 import type { SecurityMode, TagDiagnostic, TagMappingRequest } from "@/lib/types";
 
@@ -7,6 +8,8 @@ export type WizardPersisted = {
   lineId: string;
   siteName: string;
   siteTimezone: string;
+  siteLabel: string;
+  lineLabel: string;
   lineName: string;
   endpointUrl: string;
   securityMode: SecurityMode;
@@ -22,9 +25,13 @@ export type WizardMemory = {
   step3EditRevision: number;
   siteNameEditRevision: number;
   siteTimezoneEditRevision: number;
+  siteLabelEditRevision: number;
+  lineLabelEditRevision: number;
   lineNameEditRevision: number;
   siteNameDirty: boolean;
   siteTimezoneDirty: boolean;
+  siteLabelDirty: boolean;
+  lineLabelDirty: boolean;
   lineNameDirty: boolean;
   step2Passed: boolean;
   probeDiagnostics: Record<string, TagDiagnostic>;
@@ -48,6 +55,8 @@ export function emptyWizard(siteId: string, lineId: string): WizardState {
     lineId,
     siteName: "",
     siteTimezone: "Asia/Kolkata",
+    siteLabel: DEFAULT_SITE_LABEL,
+    lineLabel: DEFAULT_LINE_LABEL,
     lineName: "",
     endpointUrl: "opc.tcp://localhost:53530/OPCUA/SimulationServer",
     securityMode: "None",
@@ -60,9 +69,13 @@ export function emptyWizard(siteId: string, lineId: string): WizardState {
     step3EditRevision: 0,
     siteNameEditRevision: 0,
     siteTimezoneEditRevision: 0,
+    siteLabelEditRevision: 0,
+    lineLabelEditRevision: 0,
     lineNameEditRevision: 0,
     siteNameDirty: false,
     siteTimezoneDirty: false,
+    siteLabelDirty: false,
+    lineLabelDirty: false,
     lineNameDirty: false,
     step2Passed: false,
     probeDiagnostics: {},
@@ -79,6 +92,8 @@ export function serializeWizard(state: WizardState): WizardPersisted {
     lineId: state.lineId,
     siteName: state.siteName,
     siteTimezone: state.siteTimezone,
+    siteLabel: state.siteLabel,
+    lineLabel: state.lineLabel,
     lineName: state.lineName,
     endpointUrl: state.endpointUrl,
     securityMode: state.securityMode,
@@ -151,7 +166,7 @@ export function bumpStep3Edit(state: WizardState): WizardState {
 
 export function bumpFieldEdit(
   state: WizardState,
-  field: "siteName" | "siteTimezone" | "lineName",
+  field: "siteName" | "siteTimezone" | "siteLabel" | "lineLabel" | "lineName",
   value: string,
 ): WizardState {
   if (field === "siteName") {
@@ -159,6 +174,12 @@ export function bumpFieldEdit(
   }
   if (field === "siteTimezone") {
     return { ...state, siteTimezone: value, siteTimezoneDirty: true, siteTimezoneEditRevision: state.siteTimezoneEditRevision + 1 };
+  }
+  if (field === "siteLabel") {
+    return { ...state, siteLabel: value, siteLabelDirty: true, siteLabelEditRevision: state.siteLabelEditRevision + 1 };
+  }
+  if (field === "lineLabel") {
+    return { ...state, lineLabel: value, lineLabelDirty: true, lineLabelEditRevision: state.lineLabelEditRevision + 1 };
   }
   return { ...state, lineName: value, lineNameDirty: true, lineNameEditRevision: state.lineNameEditRevision + 1 };
 }
@@ -191,7 +212,14 @@ export function classifyCreateStatus(status: number): "created" | "collision" | 
 export function applyCreateSuccess(
   state: WizardState,
   which: "site" | "line",
-  captured: { generation: number; siteNameRevision: number; timezoneRevision: number; lineRevision: number },
+  captured: {
+    generation: number;
+    siteNameRevision: number;
+    timezoneRevision: number;
+    siteLabelRevision: number;
+    lineLabelRevision: number;
+    lineRevision: number;
+  },
 ): WizardState {
   if (state.wizardGeneration !== captured.generation) return state;
   if (which === "site") {
@@ -199,11 +227,25 @@ export function applyCreateSuccess(
       ...state,
       siteNameDirty: state.siteNameEditRevision === captured.siteNameRevision ? false : state.siteNameDirty,
       siteTimezoneDirty: state.siteTimezoneEditRevision === captured.timezoneRevision ? false : state.siteTimezoneDirty,
+      siteLabelDirty: state.siteLabelEditRevision === captured.siteLabelRevision ? false : state.siteLabelDirty,
+      lineLabelDirty: state.lineLabelEditRevision === captured.lineLabelRevision ? false : state.lineLabelDirty,
     };
   }
   return {
     ...state,
     lineNameDirty: state.lineNameEditRevision === captured.lineRevision ? false : state.lineNameDirty,
+  };
+}
+
+export function applyLabelSaveSuccess(
+  state: WizardState,
+  captured: { generation: number; siteLabelRevision: number; lineLabelRevision: number },
+): WizardState {
+  if (state.wizardGeneration !== captured.generation) return state;
+  return {
+    ...state,
+    siteLabelDirty: state.siteLabelEditRevision === captured.siteLabelRevision ? false : state.siteLabelDirty,
+    lineLabelDirty: state.lineLabelEditRevision === captured.lineLabelRevision ? false : state.lineLabelDirty,
   };
 }
 

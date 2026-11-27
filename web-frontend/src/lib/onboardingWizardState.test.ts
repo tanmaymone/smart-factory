@@ -38,6 +38,8 @@ describe("SF-M35 onboarding wizard state", () => {
       generation: started.wizardGeneration,
       siteNameRevision: started.siteNameEditRevision - 1,
       timezoneRevision: started.siteTimezoneEditRevision,
+      siteLabelRevision: started.siteLabelEditRevision,
+      lineLabelRevision: started.lineLabelEditRevision,
       lineRevision: started.lineNameEditRevision,
     });
     expect(applied.siteNameDirty).toBe(true);

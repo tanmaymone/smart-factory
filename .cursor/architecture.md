@@ -197,6 +197,8 @@ smart-factory-platform/
 
    * `lifecycle` (ENUM: `DRAFT`, `VERIFIED`, `ACTIVE`; V5 default `ACTIVE` for seed; API create default `DRAFT`)
 
+   * `site_label` / `line_label` (V8, UI-only words per site; default `Site`/`Line`; optional on POST; PUT may change them alone — no `site_config_revisions` bump; omitted on PUT keeps stored; not in edge manifest/`contentHash`)
+
    * REST: `GET/POST /api/registry/sites`; `GET/PUT /api/registry/sites/{siteCode}` (POST idempotent on `siteCode`: 201 create / 200 existing)
 
 2. **`lines`**:
