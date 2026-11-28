@@ -12,31 +12,11 @@ import type {
   TagMappingRequest,
 } from "@/lib/types";
 
-const MISSING_BOOTSTRAP_MESSAGE =
-  "Set NEXT_PUBLIC_BOOTSTRAP_TOKEN and APP_BOOTSTRAP_TOKEN to the same value before changing the registry.";
-
-function bootstrapToken(): string | null {
-  const raw = process.env.NEXT_PUBLIC_BOOTSTRAP_TOKEN;
-  if (raw == null) {
-    return null;
-  }
-  const trimmed = raw.trim();
-  if (!trimmed || trimmed === "undefined") {
-    return null;
-  }
-  return trimmed;
+function jsonHeaders(): HeadersInit {
+  return { "Content-Type": "application/json" };
 }
 
-export function setupMutationHeaders(): HeadersInit {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  const token = bootstrapToken();
-  if (token) {
-    headers["X-Setup-Token"] = token;
-  }
-  return headers;
-}
+const fetchInit: RequestInit = { credentials: "same-origin", cache: "no-store" };
 
 export function parseRegistryError(payload: unknown): RegistryErrorResponse {
   if (payload == null || typeof payload !== "object") {
@@ -57,21 +37,6 @@ export function parseRegistryError(payload: unknown): RegistryErrorResponse {
         )
       : [],
   };
-}
-
-function mutationError(
-  status: number,
-  payload: unknown,
-): RegistryErrorResponse {
-  const parsed = parseRegistryError(payload);
-  if (status === 401 && bootstrapToken() == null) {
-    return {
-      ...parsed,
-      code: typeof parsed.code === "string" ? parsed.code : "UNAUTHENTICATED",
-      message: MISSING_BOOTSTRAP_MESSAGE,
-    };
-  }
-  return parsed;
 }
 
 export type RegistryListQuery = {
@@ -95,10 +60,7 @@ export async function listRegistryTags(
   signal?: AbortSignal,
 ): Promise<TagMapping[]> {
   const qs = buildRegistryListQuery(query);
-  const response = await fetch(`/api/registry/tags?${qs}`, {
-    signal,
-    cache: "no-store",
-  });
+  const response = await fetch(`/api/registry/tags?${qs}`, { ...fetchInit, signal });
   if (!response.ok) {
     throw Object.assign(new Error("Failed to load tags"), {
       ...parseRegistryError(await response.json().catch(() => null)),
@@ -117,10 +79,10 @@ export async function createRegistryTag(
 > {
   const response = await fetch("/api/registry/tags", {
     method: "POST",
-    headers: setupMutationHeaders(),
+    headers: jsonHeaders(),
     body: JSON.stringify(body),
+    ...fetchInit,
     signal,
-    cache: "no-store",
   });
   const payload: unknown = await response.json().catch(() => null);
   if (response.status === 201) {
@@ -129,7 +91,7 @@ export async function createRegistryTag(
   return {
     ok: false,
     status: response.status,
-    error: mutationError(response.status, payload),
+    error: parseRegistryError(payload),
   };
 }
 
@@ -143,10 +105,10 @@ export async function updateRegistryTag(
 > {
   const response = await fetch(`/api/registry/tags/${id}`, {
     method: "PUT",
-    headers: setupMutationHeaders(),
+    headers: jsonHeaders(),
     body: JSON.stringify(body),
+    ...fetchInit,
     signal,
-    cache: "no-store",
   });
   const payload: unknown = await response.json().catch(() => null);
   if (response.ok) {
@@ -155,7 +117,7 @@ export async function updateRegistryTag(
   return {
     ok: false,
     status: response.status,
-    error: mutationError(response.status, payload),
+    error: parseRegistryError(payload),
   };
 }
 
@@ -167,9 +129,9 @@ export async function deleteRegistryTag(
 > {
   const response = await fetch(`/api/registry/tags/${id}`, {
     method: "DELETE",
-    headers: setupMutationHeaders(),
+    headers: jsonHeaders(),
+    ...fetchInit,
     signal,
-    cache: "no-store",
   });
   if (response.status === 204) {
     return { ok: true };
@@ -178,7 +140,7 @@ export async function deleteRegistryTag(
   return {
     ok: false,
     status: response.status,
-    error: mutationError(response.status, payload),
+    error: parseRegistryError(payload),
   };
 }
 
@@ -187,7 +149,7 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 export async function listSites(signal?: AbortSignal): Promise<SiteResponse[]> {
-  const response = await fetch("/api/registry/sites", { signal, cache: "no-store" });
+  const response = await fetch("/api/registry/sites", { ...fetchInit, signal });
   if (!response.ok) {
     throw Object.assign(new Error("Failed to load sites"), {
       ...parseRegistryError(await readJson(response)),
@@ -202,10 +164,7 @@ export async function listLines(
   signal?: AbortSignal,
 ): Promise<LineResponse[]> {
   const query = siteCode ? `?siteCode=${encodeURIComponent(siteCode)}` : "";
-  const response = await fetch(`/api/registry/lines${query}`, {
-    signal,
-    cache: "no-store",
-  });
+  const response = await fetch(`/api/registry/lines${query}`, { ...fetchInit, signal });
   if (!response.ok) {
     throw Object.assign(new Error("Failed to load lines"), {
       ...parseRegistryError(await readJson(response)),
@@ -221,7 +180,7 @@ export async function getSite(
 ): Promise<{ status: number; site: SiteResponse | null; error: RegistryErrorResponse | null }> {
   const response = await fetch(
     `/api/registry/sites/${encodeRegistryPathSegment(siteCode)}`,
-    { signal, cache: "no-store" },
+    { ...fetchInit, signal },
   );
   const payload = await readJson(response);
   if (response.ok) {
@@ -237,7 +196,7 @@ export async function getLine(
 ): Promise<{ status: number; line: LineResponse | null; error: RegistryErrorResponse | null }> {
   const response = await fetch(
     `/api/registry/lines/${encodeRegistryPathSegment(siteCode)}/${encodeRegistryPathSegment(lineCode)}`,
-    { signal, cache: "no-store" },
+    { ...fetchInit, signal },
   );
   const payload = await readJson(response);
   if (response.ok) {
@@ -255,16 +214,16 @@ export async function createSite(
 > {
   const response = await fetch("/api/registry/sites", {
     method: "POST",
-    headers: setupMutationHeaders(),
+    headers: jsonHeaders(),
     body: JSON.stringify(body),
+    ...fetchInit,
     signal,
-    cache: "no-store",
   });
   const payload = await readJson(response);
   if (response.status === 201 || response.status === 200) {
     return { ok: true, created: response.status === 201, site: payload as SiteResponse };
   }
-  return { ok: false, status: response.status, error: mutationError(response.status, payload) };
+  return { ok: false, status: response.status, error: parseRegistryError(payload) };
 }
 
 export async function createLine(
@@ -276,16 +235,16 @@ export async function createLine(
 > {
   const response = await fetch("/api/registry/lines", {
     method: "POST",
-    headers: setupMutationHeaders(),
+    headers: jsonHeaders(),
     body: JSON.stringify(body),
+    ...fetchInit,
     signal,
-    cache: "no-store",
   });
   const payload = await readJson(response);
   if (response.status === 201 || response.status === 200) {
     return { ok: true, created: response.status === 201, line: payload as LineResponse };
   }
-  return { ok: false, status: response.status, error: mutationError(response.status, payload) };
+  return { ok: false, status: response.status, error: parseRegistryError(payload) };
 }
 
 export async function updateSite(
@@ -298,16 +257,16 @@ export async function updateSite(
 > {
   const response = await fetch(`/api/registry/sites/${encodeRegistryPathSegment(siteCode)}`, {
     method: "PUT",
-    headers: setupMutationHeaders(),
+    headers: jsonHeaders(),
     body: JSON.stringify(body),
+    ...fetchInit,
     signal,
-    cache: "no-store",
   });
   const payload = await readJson(response);
   if (response.ok) {
     return { ok: true, site: payload as SiteResponse };
   }
-  return { ok: false, status: response.status, error: mutationError(response.status, payload) };
+  return { ok: false, status: response.status, error: parseRegistryError(payload) };
 }
 
 export async function updateLine(
@@ -322,16 +281,16 @@ export async function updateLine(
   const path = `/api/registry/lines/${encodeRegistryPathSegment(siteCode)}/${encodeRegistryPathSegment(lineCode)}`;
   const response = await fetch(path, {
     method: "PUT",
-    headers: setupMutationHeaders(),
+    headers: jsonHeaders(),
     body: JSON.stringify(body),
+    ...fetchInit,
     signal,
-    cache: "no-store",
   });
   const payload = await readJson(response);
   if (response.ok) {
     return { ok: true, line: payload as LineResponse };
   }
-  return { ok: false, status: response.status, error: mutationError(response.status, payload) };
+  return { ok: false, status: response.status, error: parseRegistryError(payload) };
 }
 
 export async function importTagsBatch(
@@ -343,10 +302,10 @@ export async function importTagsBatch(
 > {
   const response = await fetch("/api/registry/tags/batch", {
     method: "POST",
-    headers: setupMutationHeaders(),
+    headers: jsonHeaders(),
     body: JSON.stringify(rows),
+    ...fetchInit,
     signal,
-    cache: "no-store",
   });
   const payload = await readJson(response);
   if (!response.ok) {
@@ -354,7 +313,7 @@ export async function importTagsBatch(
       ok: false,
       status: response.status,
       body: null,
-      error: mutationError(response.status, payload),
+      error: parseRegistryError(payload),
     };
   }
   const body = payload as TagBatchResponse;

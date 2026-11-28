@@ -31,11 +31,14 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
 
 app:
-  bootstrap:
-    # Empty fails closed. Set APP_BOOTSTRAP_TOKEN for first-run registry and actor provisioning.
-    token: ${APP_BOOTSTRAP_TOKEN:}
-    actor-id: ${APP_BOOTSTRAP_ACTOR_ID:bootstrap-admin}
-    display-name: ${APP_BOOTSTRAP_DISPLAY_NAME:Bootstrap Admin}
+  auth:
+    session-cookie-name: ${APP_AUTH_SESSION_COOKIE:SF_SESSION}
+    session-ttl-seconds: ${APP_AUTH_SESSION_TTL_SECONDS:28800}
+    bootstrap-admin:
+      actor-id: ${APP_ADMIN_USERNAME:}
+      password: ${APP_ADMIN_PASSWORD:}
+      display-name: ${APP_ADMIN_DISPLAY_NAME:Bootstrap Admin}
+    bootstrap-edge-tokens: ${APP_EDGE_BOOTSTRAP_TOKENS:}
   onboarding:
     # Off in production: the probe is a scanner on the plant LAN. Dev/Prosys profiles opt in.
     probe-enabled: ${APP_ONBOARDING_PROBE_ENABLED:false}

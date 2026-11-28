@@ -38,6 +38,10 @@ public class EdgeConfigClient {
         if (fetchedVersion != null && fetchedVersion > 0) {
             request = request.header(HttpHeaders.IF_NONE_MATCH, "\"v" + fetchedVersion + "\"");
         }
+        String authToken = properties.getConfigAuthToken();
+        if (!authToken.isEmpty()) {
+            request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + authToken);
+        }
         try {
             return request.exchange((req, res) -> {
                 HttpStatusCode status = res.getStatusCode();
@@ -46,6 +50,12 @@ public class EdgeConfigClient {
                 }
                 if (status.value() == 404) {
                     return FetchResult.notFound();
+                }
+                if (status.value() == 401) {
+                    return FetchResult.error("HTTP 401 UNAUTHENTICATED");
+                }
+                if (status.value() == 403) {
+                    return FetchResult.error("HTTP 403 FORBIDDEN");
                 }
                 if (!status.is2xxSuccessful()) {
                     return FetchResult.error("HTTP " + status.value());
@@ -57,6 +67,12 @@ public class EdgeConfigClient {
         } catch (RestClientResponseException ex) {
             if (ex.getStatusCode().value() == 404) {
                 return FetchResult.notFound();
+            }
+            if (ex.getStatusCode().value() == 401) {
+                return FetchResult.error("HTTP 401 UNAUTHENTICATED");
+            }
+            if (ex.getStatusCode().value() == 403) {
+                return FetchResult.error("HTTP 403 FORBIDDEN");
             }
             return FetchResult.error("HTTP " + ex.getStatusCode().value());
         } catch (Exception ex) {

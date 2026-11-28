@@ -7,7 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.factory.central.access.BootstrapActorResolver;
+import com.factory.central.access.AuthTestSupport;
+import jakarta.servlet.http.Cookie;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
@@ -70,8 +71,11 @@ class OnboardingTemplateApiIT {
                 "app.mqtt.broker-url",
                 () -> "tcp://" + mosquitto.getHost() + ":" + mosquitto.getMappedPort(1883));
         registry.add("app.mqtt.client-id", () -> "central-onboarding-template-it-" + UUID.randomUUID());
-        registry.add("app.bootstrap.token", () -> "it-bootstrap-token");
+        AuthTestSupport.registerBootstrapAdmin(registry);
     }
+
+    @Autowired
+    private MockMvc springMvc;
 
     @Autowired
     private WebApplicationContext webApplicationContext;
@@ -82,10 +86,9 @@ class OnboardingTemplateApiIT {
     private MockMvc mockMvc;
 
     @BeforeEach
-    void setUpMockMvc() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
-                .defaultRequest(get("/").header(BootstrapActorResolver.SETUP_TOKEN_HEADER, "it-bootstrap-token"))
-                .build();
+    void setUpMockMvc() throws Exception {
+        Cookie admin = AuthTestSupport.adminSession(springMvc);
+        mockMvc = AuthTestSupport.secureMvc(webApplicationContext, admin);
     }
 
     @Test

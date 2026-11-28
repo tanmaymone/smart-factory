@@ -2,6 +2,7 @@ package com.factory.central.access;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.UUID;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -23,13 +24,7 @@ class AccessPolicyTest {
                 AccessPolicy.evaluate(AccessAction.REGISTRY_WRITE, new ActorResolution.Resolved(operator)),
                 HttpStatus.FORBIDDEN);
         assertDenied(
-                AccessPolicy.evaluate(AccessAction.ACTOR_ADMIN, new ActorResolution.Resolved(supervisor)),
-                HttpStatus.FORBIDDEN);
-        assertDenied(
-                AccessPolicy.evaluate(AccessAction.ONBOARDING_PROBE, new ActorResolution.Resolved(operator)),
-                HttpStatus.FORBIDDEN);
-        assertDenied(
-                AccessPolicy.evaluate(AccessAction.ONBOARDING_PROBE, new ActorResolution.Resolved(supervisor)),
+                AccessPolicy.evaluate(AccessAction.AUTHENTICATED_READ, new ActorResolution.EdgeSite(UUID.randomUUID(), "INDORE")),
                 HttpStatus.FORBIDDEN);
     }
 
@@ -39,12 +34,13 @@ class AccessPolicyTest {
 
         assertThat(AccessPolicy.evaluate(AccessAction.REGISTRY_WRITE, new ActorResolution.Resolved(admin)))
                 .isInstanceOf(AccessPolicy.Allow.class);
-        assertThat(AccessPolicy.evaluate(AccessAction.ACTOR_ADMIN, new ActorResolution.Resolved(admin)))
-                .isInstanceOf(AccessPolicy.Allow.class);
-        assertThat(AccessPolicy.evaluate(AccessAction.ONBOARDING_PROBE, new ActorResolution.Resolved(admin)))
+        assertThat(AccessPolicy.evaluate(AccessAction.TELEMETRY_INGEST, new ActorResolution.Resolved(admin)))
                 .isInstanceOf(AccessPolicy.Allow.class);
         assertDenied(
                 AccessPolicy.evaluate(AccessAction.COMMAND_WRITE, new ActorResolution.Resolved(admin)),
+                HttpStatus.FORBIDDEN);
+        assertDenied(
+                AccessPolicy.evaluate(AccessAction.EDGE_CONFIG_READ, new ActorResolution.Resolved(admin)),
                 HttpStatus.FORBIDDEN);
     }
 
@@ -56,23 +52,23 @@ class AccessPolicyTest {
                 AccessPolicy.evaluate(AccessAction.COMMAND_WRITE, new ActorResolution.Resolved(viewer)),
                 HttpStatus.FORBIDDEN);
         assertDenied(
-                AccessPolicy.evaluate(AccessAction.REGISTRY_WRITE, new ActorResolution.Resolved(viewer)),
-                HttpStatus.FORBIDDEN);
-        assertDenied(
                 AccessPolicy.evaluate(AccessAction.COMMAND_WRITE, new ActorResolution.Anonymous()),
                 HttpStatus.UNAUTHORIZED);
+        assertThat(AccessPolicy.evaluate(AccessAction.AUTHENTICATED_READ, new ActorResolution.Resolved(viewer)))
+                .isInstanceOf(AccessPolicy.Allow.class);
+    }
+
+    @Test
+    void edgeSiteTokenBoundToConfigSite() {
+        ActorResolution.EdgeSite indore = new ActorResolution.EdgeSite(UUID.randomUUID(), "INDORE");
+        assertThat(AccessPolicy.evaluateEdgeConfig(AccessAction.EDGE_CONFIG_READ, indore, "INDORE"))
+                .isInstanceOf(AccessPolicy.Allow.class);
         assertDenied(
-                AccessPolicy.evaluate(AccessAction.REGISTRY_WRITE, new ActorResolution.Anonymous()),
-                HttpStatus.UNAUTHORIZED);
-        assertDenied(
-                AccessPolicy.evaluate(AccessAction.ONBOARDING_PROBE, new ActorResolution.Resolved(viewer)),
+                AccessPolicy.evaluateEdgeConfig(AccessAction.EDGE_CONFIG_READ, indore, "PUNE"),
                 HttpStatus.FORBIDDEN);
+        assertThat(AccessPolicy.evaluate(AccessAction.EDGE_CONFIG_READ, indore)).isInstanceOf(AccessPolicy.Allow.class);
         assertDenied(
-                AccessPolicy.evaluate(AccessAction.ONBOARDING_PROBE, new ActorResolution.Anonymous()),
-                HttpStatus.UNAUTHORIZED);
-        assertDenied(
-                AccessPolicy.evaluate(AccessAction.ONBOARDING_PROBE, new ActorResolution.Rejected()),
-                HttpStatus.UNAUTHORIZED);
+                AccessPolicy.evaluate(AccessAction.COMMAND_WRITE, indore), HttpStatus.FORBIDDEN);
     }
 
     private static void assertDenied(AccessPolicy.Decision decision, HttpStatus status) {

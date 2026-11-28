@@ -2,6 +2,25 @@ export type AlarmSeverity = "NONE" | "WARNING" | "CRITICAL";
 export type AlarmDirection = "LOW" | "HIGH" | null;
 export type Quality = "GOOD" | "BAD" | "UNCERTAIN" | string;
 export type ProbeQuality = "GOOD" | "BAD" | "UNREACHABLE";
+export type ActorRole = "VIEWER" | "OPERATOR" | "SUPERVISOR" | "ONBOARDING_ADMIN";
+
+export type AuthUser = {
+  actorId: string;
+  displayName: string;
+  role: ActorRole;
+};
+
+export type LoginRequest = {
+  actorId: string;
+  password: string;
+};
+
+export type AuthErrorResponse = {
+  code: string;
+  message: string;
+  fieldErrors: { field: string; message: string }[];
+};
+
 export type RegistryLifecycle = "DRAFT" | "VERIFIED" | "ACTIVE";
 export type SiteStatus = "ONLINE" | "DEGRADED" | "OFFLINE";
 export type SecurityMode = "None" | "SignAndEncrypt";
@@ -212,7 +231,6 @@ export type CommandRequest = {
   lineId: string;
   tagId: string;
   targetValue: unknown;
-  requestedBy: string;
   reason: string;
 };
 

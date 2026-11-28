@@ -29,6 +29,7 @@ services:
       EDGE_SITE_ID: ${EDGE_SITE_ID:-INDORE}
       CENTRAL_BASE_URL: ${CENTRAL_BASE_URL:-https://host.docker.internal}
       CENTRAL_CA_CERT_PATH: ${CENTRAL_CA_CERT_PATH:-}
+      EDGE_CONFIG_TOKEN: ${EDGE_CONFIG_TOKEN:?EDGE_CONFIG_TOKEN must be set}
       EDGE_CONFIG_SNAPSHOT_PATH: /data/edge-config.json
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m -XX:MaxMetaspaceSize=128m"
     ports:

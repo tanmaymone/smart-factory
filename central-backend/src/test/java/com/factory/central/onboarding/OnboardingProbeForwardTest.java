@@ -134,7 +134,7 @@ class OnboardingProbeForwardTest {
 
     private static RequestBuilder probe() {
         return post(PATH)
-                .header(ProbeTestSupport.setupTokenHeader(), ProbeTestSupport.ADMIN_TOKEN)
+                .header(ProbeTestSupport.onboardingAdminHeader(), "ONBOARDING_ADMIN")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(REQUEST_BYTES);
     }

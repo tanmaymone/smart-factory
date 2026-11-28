@@ -8,8 +8,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.factory.central.access.AuthTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.Cookie;
 import com.factory.central.cache.AlarmSeverity;
 import com.factory.central.cache.LatestTagCache;
 import com.factory.central.cache.LatestTagState;
@@ -70,7 +72,7 @@ class CommandApiIT {
                 "app.mqtt.broker-url",
                 () -> "tcp://" + mosquitto.getHost() + ":" + mosquitto.getMappedPort(1883));
         registry.add("app.mqtt.client-id", () -> "central-backend-cmd-it-" + UUID.randomUUID());
-        registry.add("app.bootstrap.token", () -> "it-bootstrap-token");
+        AuthTestSupport.registerBootstrapAdmin(registry);
     }
 
     @Autowired
@@ -88,10 +90,23 @@ class CommandApiIT {
     @Autowired
     private com.factory.central.access.ActorRepository actorRepository;
 
+    @Autowired
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
+    private Cookie operatorCookie;
+    private Cookie adminCookie;
+
     @org.junit.jupiter.api.BeforeEach
-    void seedOperator() {
-        actorRepository.save(new com.factory.central.access.ActorEntity(
-                "operator@factory.com", "Operator", com.factory.central.access.ActorRole.OPERATOR));
+    void seedOperator() throws Exception {
+        AuthTestSupport.seedActor(
+                actorRepository,
+                passwordEncoder,
+                "operator@factory.com",
+                "Operator",
+                com.factory.central.access.ActorRole.OPERATOR,
+                "op-pass-1234");
+        operatorCookie = AuthTestSupport.login(mockMvc, "operator@factory.com", "op-pass-1234");
+        adminCookie = AuthTestSupport.adminSession(mockMvc);
     }
 
     @Test
@@ -106,7 +121,7 @@ class CommandApiIT {
                             published.add(new String(message.getPayload(), StandardCharsets.UTF_8)));
 
             MvcResult result = mockMvc.perform(post("/api/commands")
-                            .header("X-Actor-Id", "operator@factory.com")
+                            .cookie(operatorCookie)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(
                                     """
@@ -145,6 +160,7 @@ class CommandApiIT {
             });
 
             mockMvc.perform(get("/api/commands/audit")
+                            .cookie(operatorCookie)
                             .param("siteId", "INDORE")
                             .param("lineId", "LINE-01")
                             .param("status", "ACKED"))
@@ -180,7 +196,7 @@ class CommandApiIT {
                     (topic, message) -> seen.set(new String(message.getPayload(), StandardCharsets.UTF_8)));
 
             mockMvc.perform(post("/api/commands")
-                            .header("X-Actor-Id", "operator@factory.com")
+                            .cookie(operatorCookie)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(
                                     """
@@ -198,7 +214,7 @@ class CommandApiIT {
                     .andExpect(jsonPath("$.commandId").exists());
 
             mockMvc.perform(post("/api/commands")
-                            .header("X-Actor-Id", "operator@factory.com")
+                            .cookie(operatorCookie)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(
                                     """
@@ -232,6 +248,7 @@ class CommandApiIT {
     void interlockRejectionAndMalformedAckDoesNotBreakRouter() throws Exception {
         JsonNode tags = objectMapper.readTree(
                 mockMvc.perform(get("/api/registry/tags")
+                                .cookie(operatorCookie)
                                 .param("siteId", "INDORE")
                                 .param("lineId", "LINE-01"))
                         .andExpect(status().isOk())
@@ -249,7 +266,7 @@ class CommandApiIT {
         String tagId = sp.get("id").asText();
 
         mockMvc.perform(put("/api/registry/tags/" + tagId)
-                        .header("X-Setup-Token", "it-bootstrap-token")
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(registryPutBody(sp, InletValveOpenInterlockRule.KEY))))
                 .andExpect(status().isOk());
@@ -265,7 +282,7 @@ class CommandApiIT {
                 null));
 
         mockMvc.perform(post("/api/commands")
-                        .header("X-Actor-Id", "operator@factory.com")
+                        .cookie(operatorCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -317,7 +334,7 @@ class CommandApiIT {
     void whitespaceTagCodeIsBadRequestWithoutAudit() throws Exception {
         long before = auditLogRepository.count();
         mockMvc.perform(post("/api/commands")
-                        .header("X-Actor-Id", "operator@factory.com")
+                        .cookie(operatorCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """

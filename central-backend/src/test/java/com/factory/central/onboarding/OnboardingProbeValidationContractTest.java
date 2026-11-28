@@ -56,7 +56,7 @@ class OnboardingProbeValidationContractTest {
         byte[] body = MAPPER.writeValueAsBytes(row.get("body"));
 
         MvcResult result = mockMvc.perform(post("/api/onboarding/probe")
-                        .header(ProbeTestSupport.setupTokenHeader(), ProbeTestSupport.ADMIN_TOKEN)
+                        .header(ProbeTestSupport.onboardingAdminHeader(), "ONBOARDING_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andReturn();

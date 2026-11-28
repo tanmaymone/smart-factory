@@ -1,6 +1,7 @@
 package com.factory.central.access;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -10,10 +11,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.AsyncHandlerInterceptor;
 
 @Component
-public class AccessInterceptor implements HandlerInterceptor {
+public class AccessInterceptor implements AsyncHandlerInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(AccessInterceptor.class);
 
@@ -27,15 +28,20 @@ public class AccessInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+        if (request.getDispatcherType() == DispatcherType.ASYNC
+                || request.getDispatcherType() == DispatcherType.ERROR) {
+            return true;
+        }
         ActorContextHolder.clear();
         boolean proceed = false;
         try {
-            Optional<AccessAction> action = AccessRoute.classify(request);
-            if (action.isEmpty()) {
+            Optional<AccessRouteMatch> route = AccessRoute.match(request);
+            if (route.isEmpty()) {
                 proceed = true;
                 return true;
             }
 
+            AccessRouteMatch match = route.get();
             ActorResolution resolution = actorResolver.resolve(request);
             if (resolution instanceof ActorResolution.Rejected) {
                 writeError(
@@ -46,20 +52,26 @@ public class AccessInterceptor implements HandlerInterceptor {
                 return false;
             }
 
-            AccessAction accessAction = action.get();
+            AccessAction accessAction = match.action();
             if (accessAction == AccessAction.OPEN) {
                 proceed = true;
                 return true;
             }
 
-            AccessPolicy.Decision decision = AccessPolicy.evaluate(accessAction, resolution);
+            AccessPolicy.Decision decision =
+                    accessAction == AccessAction.EDGE_CONFIG_READ
+                            ? AccessPolicy.evaluateEdgeConfig(
+                                    accessAction, resolution, match.targetSiteId().orElse(null))
+                            : AccessPolicy.evaluate(accessAction, resolution);
             if (decision instanceof AccessPolicy.Deny deny) {
                 writeError(response, deny.status(), deny.code(), deny.message());
                 return false;
             }
 
             AccessPolicy.Allow allow = (AccessPolicy.Allow) decision;
-            ActorContextHolder.set(allow.actor());
+            if (allow.actor().actorId() != null) {
+                ActorContextHolder.set(allow.actor());
+            }
             proceed = true;
             return true;
         } catch (Exception ex) {
@@ -84,13 +96,15 @@ public class AccessInterceptor implements HandlerInterceptor {
     }
 
     @Override
+    public void afterConcurrentHandlingStarted(
+            HttpServletRequest request, HttpServletResponse response, Object handler) {
+        ActorContextHolder.clear();
+    }
+
+    @Override
     public void afterCompletion(
             HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
-        try {
-            ActorContextHolder.clear();
-        } finally {
-            ActorContextHolder.clear();
-        }
+        ActorContextHolder.clear();
     }
 
     private void writeError(HttpServletResponse response, HttpStatus status, String code, String message)

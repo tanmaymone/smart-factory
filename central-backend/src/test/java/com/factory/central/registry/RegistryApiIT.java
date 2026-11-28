@@ -20,7 +20,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.UUID;
-import com.factory.central.access.BootstrapActorResolver;
+import com.factory.central.access.AuthTestSupport;
+import jakarta.servlet.http.Cookie;
 import org.eclipse.paho.client.mqttv3.IMqttClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -71,19 +73,23 @@ class RegistryApiIT {
         registry.add(
                 "app.mqtt.broker-url",
                 () -> "tcp://" + mosquitto.getHost() + ":" + mosquitto.getMappedPort(1883));
-        registry.add("app.bootstrap.token", () -> "it-bootstrap-token");
+        AuthTestSupport.registerBootstrapAdmin(registry);
     }
+
+    @Autowired
+    private MockMvc springMvc;
 
     @Autowired
     private WebApplicationContext webApplicationContext;
 
     private MockMvc mockMvc;
+    private MockMvc edgeMvc;
 
     @BeforeEach
-    void setUpMockMvc() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
-                .defaultRequest(get("/").header(BootstrapActorResolver.SETUP_TOKEN_HEADER, "it-bootstrap-token"))
-                .build();
+    void setUpMockMvc() throws Exception {
+        Cookie admin = AuthTestSupport.adminSession(springMvc);
+        mockMvc = AuthTestSupport.secureMvc(webApplicationContext, admin);
+        edgeMvc = AuthTestSupport.secureMvc(webApplicationContext);
     }
 
     @Autowired
@@ -384,7 +390,20 @@ class RegistryApiIT {
                                 """))
                 .andExpect(status().isCreated());
 
-        MvcResult before = mockMvc.perform(get("/api/edge/LABELTEST/config"))
+        MvcResult labelCred = mockMvc.perform(post("/api/access/edge-credentials")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"siteId":"LABELTEST","label":"labeltest-it"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String labelEdgeToken = objectMapper
+                .readTree(labelCred.getResponse().getContentAsString())
+                .get("token")
+                .asText();
+
+        MvcResult before = edgeMvc.perform(get("/api/edge/LABELTEST/config")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + labelEdgeToken))
                 .andExpect(status().isOk())
                 .andReturn();
         long versionBefore =
@@ -399,7 +418,8 @@ class RegistryApiIT {
                 .andExpect(jsonPath("$.siteLabel").value("Facility"))
                 .andExpect(jsonPath("$.lineLabel").value("Area"));
 
-        MvcResult afterLabels = mockMvc.perform(get("/api/edge/LABELTEST/config"))
+        MvcResult afterLabels = edgeMvc.perform(get("/api/edge/LABELTEST/config")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + labelEdgeToken))
                 .andExpect(status().isOk())
                 .andReturn();
         assertThat(objectMapper
@@ -415,7 +435,8 @@ class RegistryApiIT {
                                 """))
                 .andExpect(status().isOk());
 
-        MvcResult afterRename = mockMvc.perform(get("/api/edge/LABELTEST/config"))
+        MvcResult afterRename = edgeMvc.perform(get("/api/edge/LABELTEST/config")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + labelEdgeToken))
                 .andExpect(status().isOk())
                 .andReturn();
         assertThat(objectMapper

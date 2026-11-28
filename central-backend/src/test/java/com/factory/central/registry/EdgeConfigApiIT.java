@@ -2,6 +2,7 @@ package com.factory.central.registry;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -9,9 +10,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.factory.central.access.BootstrapActorResolver;
+import com.factory.central.access.AuthTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -38,6 +40,7 @@ import org.testcontainers.utility.MountableFile;
 @AutoConfigureMockMvc
 @Testcontainers
 @Tag("SF-REGISTRY")
+@Tag("SF-M42")
 class EdgeConfigApiIT {
 
     @Container
@@ -63,8 +66,12 @@ class EdgeConfigApiIT {
         registry.add(
                 "app.mqtt.broker-url",
                 () -> "tcp://" + mosquitto.getHost() + ":" + mosquitto.getMappedPort(1883));
-        registry.add("app.bootstrap.token", () -> "it-bootstrap-token");
+        AuthTestSupport.registerBootstrapAdmin(registry);
+        AuthTestSupport.registerBootstrapEdgeTokens(registry);
     }
+
+    @Autowired
+    private MockMvc springMvc;
 
     @Autowired
     private WebApplicationContext webApplicationContext;
@@ -79,17 +86,17 @@ class EdgeConfigApiIT {
     private SiteRepository siteRepository;
 
     private MockMvc mockMvc;
+    private Cookie adminCookie;
 
     @BeforeEach
-    void setUpMockMvc() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
-                .defaultRequest(get("/").header(BootstrapActorResolver.SETUP_TOKEN_HEADER, "it-bootstrap-token"))
-                .build();
+    void setUpMockMvc() throws Exception {
+        adminCookie = AuthTestSupport.adminSession(springMvc);
+        mockMvc = AuthTestSupport.secureMvc(webApplicationContext);
     }
 
     @Test
     void seededIndoreManifestContainsActiveOpcTagsAndOmitsEmptyLines() throws Exception {
-        MvcResult result = mockMvc.perform(get("/api/edge/INDORE/config"))
+        MvcResult result = mockMvc.perform(edgeConfigGet("INDORE"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-cache"))
                 .andExpect(header().exists(HttpHeaders.ETAG))
@@ -117,43 +124,43 @@ class EdgeConfigApiIT {
 
     @Test
     void unknownSiteAndWrongCaseAndIllegalSiteId() throws Exception {
-        mockMvc.perform(get("/api/edge/NO_SUCH/config")
-                        .header(HttpHeaders.IF_NONE_MATCH, "\"v1\""))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value(RegistryErrorCode.SITE_NOT_FOUND));
+        mockMvc.perform(edgeConfigGet("NO_SUCH").header(HttpHeaders.IF_NONE_MATCH, "\"v1\""))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("EDGE_SITE_FORBIDDEN"));
 
-        mockMvc.perform(get("/api/edge/indore/config"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value(RegistryErrorCode.SITE_NOT_FOUND));
+        mockMvc.perform(get("/api/edge/indore/config").header(HttpHeaders.AUTHORIZATION, indoreBearer()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("EDGE_SITE_FORBIDDEN"));
 
-        mockMvc.perform(get("/api/edge/BAD SITE!/config"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(RegistryErrorCode.INVALID_PARAMETER));
+        mockMvc.perform(get("/api/edge/BAD SITE!/config").header(HttpHeaders.AUTHORIZATION, indoreBearer()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("EDGE_SITE_FORBIDDEN"));
     }
 
     @Test
     void ifNoneMatchReturns304AndEmptyWhitespaceHeaderReturns200() throws Exception {
-        MvcResult first = mockMvc.perform(get("/api/edge/INDORE/config"))
+        MvcResult first = mockMvc.perform(edgeConfigGet("INDORE"))
                 .andExpect(status().isOk())
                 .andReturn();
         String etag = first.getResponse().getHeader(HttpHeaders.ETAG);
         assertThat(etag).isNotBlank();
 
-        mockMvc.perform(get("/api/edge/INDORE/config").header(HttpHeaders.IF_NONE_MATCH, etag))
+        mockMvc.perform(edgeConfigGet("INDORE").header(HttpHeaders.IF_NONE_MATCH, etag))
                 .andExpect(status().isNotModified())
                 .andExpect(header().string(HttpHeaders.ETAG, etag))
                 .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-cache"));
 
-        mockMvc.perform(get("/api/edge/INDORE/config").header(HttpHeaders.IF_NONE_MATCH, "W/\"v999\", " + etag))
+        mockMvc.perform(edgeConfigGet("INDORE").header(HttpHeaders.IF_NONE_MATCH, "W/\"v999\", " + etag))
                 .andExpect(status().isNotModified());
 
-        mockMvc.perform(get("/api/edge/INDORE/config").header(HttpHeaders.IF_NONE_MATCH, "   "))
+        mockMvc.perform(edgeConfigGet("INDORE").header(HttpHeaders.IF_NONE_MATCH, "   "))
                 .andExpect(status().isOk());
     }
 
     @Test
     void demotedSiteReturnsEmptyLinesAndNameOnlyBumpKeepsHash() throws Exception {
         mockMvc.perform(post("/api/registry/sites")
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -162,6 +169,7 @@ class EdgeConfigApiIT {
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post("/api/registry/lines")
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -169,7 +177,9 @@ class EdgeConfigApiIT {
                                 """))
                 .andExpect(status().isCreated());
 
-        MvcResult before = mockMvc.perform(get("/api/edge/NAGPUR/config"))
+        String nagpurToken = mintEdgeToken("NAGPUR", "nagpur-edge");
+
+        MvcResult before = mockMvc.perform(edgeConfigGet("NAGPUR", nagpurToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.lines", hasSize(0)))
                 .andReturn();
@@ -178,6 +188,7 @@ class EdgeConfigApiIT {
         String hashBefore = beforeBody.get("contentHash").asText();
 
         mockMvc.perform(put("/api/registry/sites/NAGPUR")
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -185,7 +196,7 @@ class EdgeConfigApiIT {
                                 """))
                 .andExpect(status().isOk());
 
-        MvcResult after = mockMvc.perform(get("/api/edge/NAGPUR/config"))
+        MvcResult after = mockMvc.perform(edgeConfigGet("NAGPUR", nagpurToken))
                 .andExpect(status().isOk())
                 .andReturn();
         JsonNode afterBody = objectMapper.readTree(after.getResponse().getContentAsString());
@@ -193,6 +204,7 @@ class EdgeConfigApiIT {
         assertThat(afterBody.get("contentHash").asText()).isEqualTo(hashBefore);
 
         mockMvc.perform(put("/api/registry/sites/NAGPUR")
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -200,23 +212,21 @@ class EdgeConfigApiIT {
                                 """))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/edge/NAGPUR/config"))
+        mockMvc.perform(edgeConfigGet("NAGPUR", nagpurToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.siteLifecycle").value("DRAFT"))
                 .andExpect(jsonPath("$.lines", hasSize(0)));
     }
 
     @Test
-    void missingRevisionRowDefaultsToVersionOne() {
+    void missingRevisionRowDefaultsToVersionOne() throws Exception {
         assertThat(siteRepository.findById("INDORE")).isPresent();
         jdbcTemplate.update("DELETE FROM site_config_revisions WHERE site_id = ?", "PUNE");
         try {
-            mockMvc.perform(get("/api/edge/PUNE/config"))
+            mockMvc.perform(edgeConfigGet("PUNE"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.version").value(1))
                     .andExpect(jsonPath("$.lines").isArray());
-        } catch (Exception ex) {
-            throw new AssertionError(ex);
         } finally {
             jdbcTemplate.update(
                     """
@@ -228,12 +238,87 @@ class EdgeConfigApiIT {
     }
 
     @Test
-    void anonymousGetAllowedUnknownActorRejected() throws Exception {
-        MockMvc openMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+    void edgeTokenAuthRejectsAnonymousHumanAndCrossSite() throws Exception {
+        MockMvc openMvc = AuthTestSupport.secureMvc(webApplicationContext);
 
-        openMvc.perform(get("/api/edge/INDORE/config")).andExpect(status().isOk());
-
-        openMvc.perform(get("/api/edge/INDORE/config").header(BootstrapActorResolver.ACTOR_ID_HEADER, "missing-actor"))
+        openMvc.perform(get("/api/edge/INDORE/config")).andExpect(status().isUnauthorized());
+        openMvc.perform(get("/api/edge/INDORE/config").header(HttpHeaders.AUTHORIZATION, "Bearer wrong"))
                 .andExpect(status().isUnauthorized());
+
+        openMvc.perform(get("/api/edge/INDORE/config").cookie(adminCookie))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        openMvc.perform(get("/api/edge/PUNE/config").header(HttpHeaders.AUTHORIZATION, indoreBearer()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("EDGE_SITE_FORBIDDEN"));
+
+        openMvc.perform(get("/api/edge/INDORE/config").header(AuthTestSupport.LEGACY_ACTOR_HEADER, "missing-actor"))
+                .andExpect(status().isUnauthorized());
+
+        openMvc.perform(post("/api/commands")
+                        .header(HttpHeaders.AUTHORIZATION, indoreBearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+
+        openMvc.perform(post("/api/registry/sites")
+                        .header(HttpHeaders.AUTHORIZATION, indoreBearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+
+        JsonNode created = objectMapper.readTree(mintEdgeCredentialBody("INDORE", "rotate-me"));
+        String rawToken = created.get("token").asText();
+        String credentialId = created.get("id").asText();
+
+        openMvc.perform(get("/api/edge/INDORE/config").header(HttpHeaders.AUTHORIZATION, "Bearer " + rawToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/access/edge-credentials/" + credentialId).cookie(adminCookie))
+                .andExpect(status().isNoContent());
+
+        openMvc.perform(get("/api/edge/INDORE/config").header(HttpHeaders.AUTHORIZATION, "Bearer " + rawToken))
+                .andExpect(status().isUnauthorized());
+    }
+
+    private String mintEdgeCredentialBody(String siteId, String label) throws Exception {
+        return mockMvc.perform(post("/api/access/edge-credentials")
+                        .cookie(adminCookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"siteId":"%s","label":"%s"}
+                                """
+                                        .formatted(siteId, label)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+    }
+
+    private String mintEdgeToken(String siteId, String label) throws Exception {
+        return objectMapper.readTree(mintEdgeCredentialBody(siteId, label)).get("token").asText();
+    }
+
+    private static String indoreBearer() {
+        return "Bearer " + AuthTestSupport.INDORE_EDGE_TOKEN;
+    }
+
+    private static String edgeBearerFor(String siteId) {
+        if ("PUNE".equals(siteId)) {
+            return "Bearer " + AuthTestSupport.PUNE_EDGE_TOKEN;
+        }
+        return indoreBearer();
+    }
+
+    private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder edgeConfigGet(String siteId) {
+        return get("/api/edge/" + siteId + "/config")
+                .header(HttpHeaders.AUTHORIZATION, edgeBearerFor(siteId));
+    }
+
+    private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder edgeConfigGet(
+            String siteId, String rawToken) {
+        return get("/api/edge/" + siteId + "/config").header(HttpHeaders.AUTHORIZATION, "Bearer " + rawToken);
     }
 }

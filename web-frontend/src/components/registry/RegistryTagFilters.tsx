@@ -24,7 +24,7 @@ export function RegistryTagFilters({
   writableFilter: "all" | "true" | "false";
   onProtocolChange: (protocol: string) => void;
   onWritableChange: (value: "all" | "true" | "false") => void;
-  onCreate: () => void;
+  onCreate?: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/80 px-4 py-3">
@@ -67,7 +67,7 @@ export function RegistryTagFilters({
           </Select>
         </div>
       </div>
-      <Button onClick={onCreate}>New tag</Button>
+      {onCreate ? <Button onClick={onCreate}>New tag</Button> : null}
     </div>
   );
 }

@@ -11,6 +11,8 @@ import { RegistryTagForm } from "@/components/registry/RegistryTagForm";
 import { RegistryTagTable } from "@/components/registry/RegistryTagTable";
 import { CatalogNotice } from "@/components/CatalogNotice";
 import { useSiteLineSelection } from "@/hooks/useSiteLineSelection";
+import { useAuth } from "@/components/AuthProvider";
+import { canManageRegistry } from "@/lib/authPolicy";
 import { consoleMountState } from "@/lib/catalogSelection";
 import { resolveEntityLabels } from "@/lib/entityLabels";
 import {
@@ -48,6 +50,9 @@ export function RegistryConsole() {
   const [formError, setFormError] = useState<RegistryErrorResponse | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const scopeLabels = resolveEntityLabels(selection.site);
+  const { state: authState } = useAuth();
+  const registryWrite =
+    authState.status === "authenticated" && canManageRegistry(authState.user.role);
 
   useEffect(() => {
     if (catalogLoading || catalogError || !hasValidLineSelection) return;
@@ -163,24 +168,26 @@ export function RegistryConsole() {
       />
       {consoleMountState({ catalogLoading, catalogError, hasValidLineSelection }) === "body" ? (
       <>
-      <RegistryScopeLabelsCard
-        siteId={selection.siteId}
-        siteLabel={scopeLabels.siteLabel}
-        lineLabel={scopeLabels.lineLabel}
-        onSaved={refreshCatalog}
-      />
+      {registryWrite ? (
+        <RegistryScopeLabelsCard
+          siteId={selection.siteId}
+          siteLabel={scopeLabels.siteLabel}
+          lineLabel={scopeLabels.lineLabel}
+          onSaved={refreshCatalog}
+        />
+      ) : null}
       <RegistryTagFilters
         protocol={protocol}
         writableFilter={writableFilter}
         onProtocolChange={setProtocol}
         onWritableChange={setWritableFilter}
-        onCreate={openCreate}
+        onCreate={registryWrite ? openCreate : undefined}
       />
 
       <RegistryTagTable
         tags={tags}
-        onEdit={openEdit}
-        onDelete={onDelete}
+        onEdit={registryWrite ? openEdit : undefined}
+        onDelete={registryWrite ? onDelete : undefined}
         errorCode={listError?.code}
         errorMessage={listError?.message}
       />

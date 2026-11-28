@@ -8,8 +8,6 @@ import type {
 } from "@/lib/types";
 import { COMMAND_STATUSES } from "@/lib/types";
 
-export const OPERATOR_STORAGE_KEY = "sf.operator";
-
 export function isCommandStatus(value: string): value is CommandStatus {
   return (COMMAND_STATUSES as readonly string[]).includes(value);
 }
@@ -20,7 +18,6 @@ export function buildCommandBody(request: CommandRequest): CommandRequest {
     lineId: request.lineId.trim(),
     tagId: request.tagId,
     targetValue: request.targetValue,
-    requestedBy: request.requestedBy.trim(),
     reason: request.reason.trim(),
   };
 }
@@ -60,16 +57,10 @@ export async function submitCommand(
   | { ok: false; status: number; error: CommandErrorResponse }
 > {
   const body = buildCommandBody(request);
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  const actorId = body.requestedBy.trim();
-  if (actorId) {
-    headers["X-Actor-Id"] = actorId;
-  }
   const response = await fetch("/api/commands", {
     method: "POST",
-    headers,
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
     body: JSON.stringify(body),
     signal,
     cache: "no-store",
@@ -106,7 +97,6 @@ export function buildAuditQuery(query: AuditQuery): string {
   return params.toString();
 }
 
-/** Filter changes always reset to page 0 before fetch. */
 export function nextAuditPageOnFilterChange(
   prev: AuditQuery,
   next: AuditQuery,
@@ -163,6 +153,7 @@ export async function fetchCommandAudit(
 ): Promise<CommandAuditResponse[]> {
   const qs = buildAuditQuery(query);
   const response = await fetch(`/api/commands/audit?${qs}`, {
+    credentials: "same-origin",
     signal,
     cache: "no-store",
   });

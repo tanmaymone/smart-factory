@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.factory.central.access.AuthTestSupport;
+import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.UUID;
@@ -59,10 +61,18 @@ class TelemetryIngestIT {
                 "app.mqtt.broker-url",
                 () -> "tcp://" + mosquitto.getHost() + ":" + mosquitto.getMappedPort(1883));
         registry.add("app.mqtt.client-id", () -> "central-backend-it-" + UUID.randomUUID());
+        AuthTestSupport.registerBootstrapAdmin(registry);
     }
 
     @Autowired
     private MockMvc mockMvc;
+
+    private Cookie adminCookie;
+
+    @org.junit.jupiter.api.BeforeEach
+    void loginAdmin() throws Exception {
+        adminCookie = AuthTestSupport.adminSession(mockMvc);
+    }
 
     @Test
     void httpIngestUpdatesHistoryAlarmsAndSupportsPartialFailures() throws Exception {
@@ -82,11 +92,17 @@ class TelemetryIngestIT {
                   ]
                 }
                 """;
-        mockMvc.perform(post("/api/telemetry/ingest").contentType(MediaType.APPLICATION_JSON).content(critical))
+        mockMvc.perform(post("/api/telemetry/ingest")
+                        .cookie(adminCookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(critical))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.accepted").value(1));
 
-        mockMvc.perform(get("/api/telemetry/alarms").param("siteId", "INDORE").param("lineId", "LINE-01"))
+        mockMvc.perform(get("/api/telemetry/alarms")
+                        .cookie(adminCookie)
+                        .param("siteId", "INDORE")
+                        .param("lineId", "LINE-01"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].tagCode").value("REACTOR_TEMP_C"))
                 .andExpect(jsonPath("$[0].severity").value("CRITICAL"))
@@ -94,6 +110,7 @@ class TelemetryIngestIT {
 
         mockMvc.perform(
                         get("/api/telemetry/history")
+                                .cookie(adminCookie)
                                 .param("siteId", "INDORE")
                                 .param("lineId", "LINE-01")
                                 .param("tagCode", "REACTOR_TEMP_C")
@@ -104,6 +121,7 @@ class TelemetryIngestIT {
 
         mockMvc.perform(
                         get("/api/telemetry/history")
+                                .cookie(adminCookie)
                                 .param("siteId", "INDORE")
                                 .param("lineId", "LINE-01")
                                 .param("tagCode", "REACTOR_TEMP_C")
@@ -124,10 +142,15 @@ class TelemetryIngestIT {
                   "sourceTimestamp": "2026-11-19T12:01:00Z"
                 }
                 """;
-        mockMvc.perform(post("/api/telemetry/ingest").contentType(MediaType.APPLICATION_JSON).content(cleared))
+        mockMvc.perform(post("/api/telemetry/ingest")
+                        .cookie(adminCookie)
+                        .contentType(MediaType.APPLICATION_JSON).content(cleared))
                 .andExpect(status().isAccepted());
 
-        mockMvc.perform(get("/api/telemetry/alarms").param("siteId", "INDORE").param("lineId", "LINE-01"))
+        mockMvc.perform(get("/api/telemetry/alarms")
+                        .cookie(adminCookie)
+                        .param("siteId", "INDORE")
+                        .param("lineId", "LINE-01"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isEmpty());
 
@@ -142,7 +165,9 @@ class TelemetryIngestIT {
                   "sourceTimestamp": "2026-11-19T12:02:00Z"
                 }
                 """;
-        mockMvc.perform(post("/api/telemetry/ingest").contentType(MediaType.APPLICATION_JSON).content(bad))
+        mockMvc.perform(post("/api/telemetry/ingest")
+                        .cookie(adminCookie)
+                        .contentType(MediaType.APPLICATION_JSON).content(bad))
                 .andExpect(status().isAccepted());
         String freeze =
                 """
@@ -155,10 +180,15 @@ class TelemetryIngestIT {
                   "sourceTimestamp": "2026-11-19T12:03:00Z"
                 }
                 """;
-        mockMvc.perform(post("/api/telemetry/ingest").contentType(MediaType.APPLICATION_JSON).content(freeze))
+        mockMvc.perform(post("/api/telemetry/ingest")
+                        .cookie(adminCookie)
+                        .contentType(MediaType.APPLICATION_JSON).content(freeze))
                 .andExpect(status().isAccepted());
 
-        mockMvc.perform(get("/api/telemetry/alarms").param("siteId", "INDORE").param("lineId", "LINE-01"))
+        mockMvc.perform(get("/api/telemetry/alarms")
+                        .cookie(adminCookie)
+                        .param("siteId", "INDORE")
+                        .param("lineId", "LINE-01"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].severity").value("CRITICAL"))
                 .andExpect(jsonPath("$[0].alarmFrozen").value(true))
@@ -176,7 +206,9 @@ class TelemetryIngestIT {
                   ]
                 }
                 """;
-        mockMvc.perform(post("/api/telemetry/ingest").contentType(MediaType.APPLICATION_JSON).content(partial))
+        mockMvc.perform(post("/api/telemetry/ingest")
+                        .cookie(adminCookie)
+                        .contentType(MediaType.APPLICATION_JSON).content(partial))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.accepted").value(1))
                 .andExpect(jsonPath("$.errors[0].index").value(1))
@@ -194,7 +226,9 @@ class TelemetryIngestIT {
                   ]
                 }
                 """;
-        mockMvc.perform(post("/api/telemetry/ingest").contentType(MediaType.APPLICATION_JSON).content(allInvalid))
+        mockMvc.perform(post("/api/telemetry/ingest")
+                        .cookie(adminCookie)
+                        .contentType(MediaType.APPLICATION_JSON).content(allInvalid))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("INVALID_VALUE"))
                 .andExpect(jsonPath("$.accepted").value(0))
@@ -212,7 +246,9 @@ class TelemetryIngestIT {
                   ]
                 }
                 """;
-        mockMvc.perform(post("/api/telemetry/ingest").contentType(MediaType.APPLICATION_JSON).content(mixed))
+        mockMvc.perform(post("/api/telemetry/ingest")
+                        .cookie(adminCookie)
+                        .contentType(MediaType.APPLICATION_JSON).content(mixed))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("INGEST_REJECTED"));
     }
@@ -254,6 +290,7 @@ class TelemetryIngestIT {
                 .pollInterval(Duration.ofMillis(200))
                 .untilAsserted(() -> mockMvc.perform(
                                 get("/api/telemetry/latest")
+                                        .cookie(adminCookie)
                                         .param("siteId", "INDORE")
                                         .param("lineId", "LINE-01")
                                         .param("tagCode", "VALVE_101_POS"))

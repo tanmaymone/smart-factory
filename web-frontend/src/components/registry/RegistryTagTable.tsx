@@ -31,8 +31,8 @@ export function RegistryTagTable({
   errorMessage,
 }: {
   tags: TagMapping[];
-  onEdit: (tag: TagMapping) => void;
-  onDelete: (tag: TagMapping) => Promise<boolean>;
+  onEdit?: (tag: TagMapping) => void;
+  onDelete?: (tag: TagMapping) => Promise<boolean>;
   errorCode?: string | null;
   errorMessage?: string | null;
 }) {
@@ -44,7 +44,7 @@ export function RegistryTagTable({
       return;
     }
     setBusy(true);
-    const removed = await onDelete(pending);
+    const removed = onDelete ? await onDelete(pending) : false;
     setBusy(false);
     if (removed) {
       setPending(null);
@@ -112,18 +112,22 @@ export function RegistryTagTable({
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="secondary" onClick={() => onEdit(tag)}>
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        onClick={() => setPending(tag)}
-                      >
-                        Delete
-                      </Button>
-                    </div>
+                    {onEdit && onDelete ? (
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="secondary" onClick={() => onEdit(tag)}>
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={() => setPending(tag)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-slate-600">—</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

@@ -26,6 +26,10 @@ services:
       MQTT_PASSWORD: ${MQTT_CENTRAL_PASSWORD:-central-dev}
       APP_ONBOARDING_PROBE_ENABLED: "true"
       EDGE_BASE_URL: http://plant-edge:8081
+      APP_ADMIN_USERNAME: ${APP_ADMIN_USERNAME:-admin@factory.local}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-admin-dev}
+      APP_ADMIN_DISPLAY_NAME: ${APP_ADMIN_DISPLAY_NAME:-Dev Admin}
+      APP_EDGE_BOOTSTRAP_TOKENS: ${APP_EDGE_BOOTSTRAP_TOKENS:-INDORE:${EDGE_CONFIG_TOKEN:-sf_edge_indore_dev_token}}
 
   plant-edge:
     environment:
@@ -37,6 +41,7 @@ services:
       CENTRAL_CA_CERT_PATH: /certs/ca.crt
       APP_ONBOARDING_PROBE_ENABLED: "true"
       EDGE_CONFIG_SNAPSHOT_PATH: /data/edge-config.json
+      EDGE_CONFIG_TOKEN: ${EDGE_CONFIG_TOKEN:-sf_edge_indore_dev_token}
       OPC_UA_ENDPOINT: ${OPC_UA_ENDPOINT:-${OPC_ENDPOINT_URL:-opc.tcp://host.docker.internal:53530/OPCUA/SimulationServer}}
     depends_on:
       mosquitto:

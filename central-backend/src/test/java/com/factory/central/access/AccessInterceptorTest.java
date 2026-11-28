@@ -65,20 +65,21 @@ class AccessInterceptorTest {
     }
 
     @Test
-    void openStreamAnonymousAndResolvedDoNotSetHolder() throws Exception {
+    void authenticatedStreamRejectsAnonymousAndSetsHolderForResolved() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/stream/telemetry");
         request.setServletPath("/api/stream/telemetry");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         when(actorResolver.resolve(any())).thenReturn(new ActorResolution.Anonymous());
-        assertThat(interceptor.preHandle(request, response, new Object())).isTrue();
+        assertThat(interceptor.preHandle(request, response, new Object())).isFalse();
+        assertThat(response.getStatus()).isEqualTo(401);
         assertThat(ActorContextHolder.current().actorId()).isNull();
 
         when(actorResolver.resolve(any()))
                 .thenReturn(new ActorResolution.Resolved(
                         new ActorContext("admin", "Admin", ActorRole.ONBOARDING_ADMIN)));
         assertThat(interceptor.preHandle(request, response, new Object())).isTrue();
-        assertThat(ActorContextHolder.current().actorId()).isNull();
+        assertThat(ActorContextHolder.current().actorId()).isEqualTo("admin");
 
         interceptor.afterCompletion(request, response, new Object(), null);
         assertThat(ActorContextHolder.current().actorId()).isNull();

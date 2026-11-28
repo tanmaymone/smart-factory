@@ -16,6 +16,7 @@ public class EdgeConfigProperties {
     private long configTimeoutMs = 5_000L;
     private String snapshotPath = "./data/edge-config.json";
     private String centralCaCertPath = "";
+    private String configAuthToken = "";
 
     @PostConstruct
     void validate() {
@@ -107,5 +108,14 @@ public class EdgeConfigProperties {
 
     public void setCentralCaCertPath(String centralCaCertPath) {
         this.centralCaCertPath = centralCaCertPath == null ? "" : centralCaCertPath;
+    }
+
+    /** Trimmed bearer token for central config sync; never log. */
+    public String getConfigAuthToken() {
+        return configAuthToken == null ? "" : configAuthToken.trim();
+    }
+
+    public void setConfigAuthToken(String configAuthToken) {
+        this.configAuthToken = configAuthToken;
     }
 }

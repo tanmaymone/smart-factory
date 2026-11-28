@@ -1,8 +1,11 @@
 package com.factory.central.access;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,9 +13,19 @@ import org.springframework.transaction.annotation.Transactional;
 public class ActorAdminService {
 
     private final ActorRepository actorRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final AuthService authService;
+    private final Clock clock;
 
-    public ActorAdminService(ActorRepository actorRepository) {
+    public ActorAdminService(
+            ActorRepository actorRepository,
+            PasswordEncoder passwordEncoder,
+            AuthService authService,
+            Clock clock) {
         this.actorRepository = actorRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.authService = authService;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -25,6 +38,7 @@ public class ActorAdminService {
         String actorId = request.actorId() == null ? "" : request.actorId().trim();
         String displayName = request.displayName() == null ? "" : request.displayName().trim();
         String roleRaw = request.role() == null ? "" : request.role().trim();
+        String password = request.password();
 
         java.util.ArrayList<AccessErrorResponse.FieldErrorDetail> blanks = new java.util.ArrayList<>();
         if (actorId.isEmpty()) {
@@ -45,44 +59,77 @@ public class ActorAdminService {
         }
 
         ActorRole role = parseAssignableRole(roleRaw);
+        boolean enabled = request.enabled() == null || request.enabled();
 
         return actorRepository
                 .findById(actorId)
-                .map(existing -> {
-                    existing.setDisplayName(displayName);
-                    existing.setRole(role);
-                    return new ActorUpsertResult(false, ActorResponse.from(actorRepository.save(existing)));
-                })
-                .orElseGet(() -> {
-                    ActorEntity created = actorRepository.save(new ActorEntity(actorId, displayName, role));
-                    return new ActorUpsertResult(true, ActorResponse.from(created));
-                });
+                .map(existing -> updateExisting(existing, displayName, role, password, enabled))
+                .orElseGet(() -> createNew(actorId, displayName, role, password, enabled));
     }
 
-    private static ActorRole parseAssignableRole(String roleRaw) {
-        if (roleRaw.isEmpty()) {
+    private ActorUpsertResult createNew(
+            String actorId, String displayName, ActorRole role, String password, boolean enabled) {
+        if (password == null || password.isBlank()) {
+            throw new AccessException(
+                    AccessErrorCode.PASSWORD_REQUIRED,
+                    "password is required for new actors",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    List.of(new AccessErrorResponse.FieldErrorDetail(
+                            "password", "password is required for new actors")));
+        }
+        if (password.length() < 8) {
             throw new AccessException(
                     AccessErrorCode.VALIDATION_FAILED,
                     "Request validation failed",
                     HttpStatus.BAD_REQUEST,
-                    List.of(new AccessErrorResponse.FieldErrorDetail("role", "must not be blank")));
+                    List.of(new AccessErrorResponse.FieldErrorDetail("password", "size must be between 8 and 255")));
         }
+        ActorEntity created = new ActorEntity(actorId, displayName, role);
+        created.setPasswordHash(passwordEncoder.encode(password));
+        created.setEnabled(enabled);
+        return new ActorUpsertResult(true, ActorResponse.from(actorRepository.save(created)));
+    }
+
+    private ActorUpsertResult updateExisting(
+            ActorEntity existing, String displayName, ActorRole role, String password, boolean enabled) {
+        boolean wasEnabled = existing.isEnabled();
+        existing.setDisplayName(displayName);
+        existing.setRole(role);
+        existing.setEnabled(enabled);
+        existing.touchUpdatedAt(clock.instant());
+        if (password != null && !password.isBlank()) {
+            if (password.length() < 8) {
+                throw new AccessException(
+                        AccessErrorCode.VALIDATION_FAILED,
+                        "Request validation failed",
+                        HttpStatus.BAD_REQUEST,
+                        List.of(new AccessErrorResponse.FieldErrorDetail("password", "size must be between 8 and 255")));
+            }
+            existing.setPasswordHash(passwordEncoder.encode(password));
+            authService.revokeSessionsForActor(existing.getActorId());
+        }
+        if (wasEnabled && !enabled) {
+            authService.revokeSessionsForActor(existing.getActorId());
+        }
+        return new ActorUpsertResult(false, ActorResponse.from(actorRepository.save(existing)));
+    }
+
+    private static ActorRole parseAssignableRole(String roleRaw) {
         String normalized = roleRaw.toUpperCase(Locale.ROOT);
-        if ("VIEWER".equals(normalized)) {
-            return ActorRole.VIEWER;
-        }
-        if ("OPERATOR".equals(normalized)) {
-            return ActorRole.OPERATOR;
-        }
-        if ("SUPERVISOR".equals(normalized)) {
-            return ActorRole.SUPERVISOR;
-        }
-        throw new AccessException(
-                AccessErrorCode.ROLE_NOT_ASSIGNABLE,
-                "role must be VIEWER, OPERATOR, or SUPERVISOR",
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                List.of(new AccessErrorResponse.FieldErrorDetail(
-                        "role", "role must be VIEWER, OPERATOR, or SUPERVISOR")));
+        return switch (normalized) {
+            case "VIEWER" -> ActorRole.VIEWER;
+            case "OPERATOR" -> ActorRole.OPERATOR;
+            case "SUPERVISOR" -> ActorRole.SUPERVISOR;
+            case "ONBOARDING_ADMIN" -> ActorRole.ONBOARDING_ADMIN;
+            default ->
+                    throw new AccessException(
+                            AccessErrorCode.ROLE_NOT_ASSIGNABLE,
+                            "role must be VIEWER, OPERATOR, SUPERVISOR, or ONBOARDING_ADMIN",
+                            HttpStatus.UNPROCESSABLE_ENTITY,
+                            List.of(new AccessErrorResponse.FieldErrorDetail(
+                                    "role",
+                                    "role must be VIEWER, OPERATOR, SUPERVISOR, or ONBOARDING_ADMIN")));
+        };
     }
 
     public record ActorUpsertResult(boolean created, ActorResponse body) {}

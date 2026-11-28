@@ -1,4 +1,3 @@
-import { setupMutationHeaders } from "@/lib/registryApi";
 import type { OnboardingProbeRequest, OnboardingProbeResponse } from "@/lib/types";
 
 export type ProbeFieldError = { field: string; message: string; code?: string };
@@ -53,10 +52,10 @@ export function parseProbeError(payload: unknown, status: number): ParsedProbeEr
 
 export function probeErrorCopy(error: ParsedProbeError): string {
   if (error.status === 403 && error.code === "FORBIDDEN") {
-    return "Set NEXT_PUBLIC_BOOTSTRAP_TOKEN to the same value as APP_BOOTSTRAP_TOKEN.";
+    return "Your account does not have permission to run OPC UA probes.";
   }
   if (error.status === 401) {
-    return "The setup token was rejected. Check APP_BOOTSTRAP_TOKEN.";
+    return "Sign in with an ONBOARDING_ADMIN account to run probes.";
   }
   if (error.code === "PROBE_DISABLED") {
     return "Enable app.onboarding.probe-enabled on central and the edge.";
@@ -83,7 +82,8 @@ export async function postOnboardingProbe(
 > {
   const response = await fetch("/api/onboarding/probe", {
     method: "POST",
-    headers: setupMutationHeaders(),
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
     body: JSON.stringify(body),
     signal,
     cache: "no-store",

@@ -6,10 +6,12 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
+@Order(100)
 public class RegistrySeedRunner implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(RegistrySeedRunner.class);

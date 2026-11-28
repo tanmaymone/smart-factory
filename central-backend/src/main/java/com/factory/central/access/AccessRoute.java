@@ -1,61 +1,116 @@
 package com.factory.central.access;
 
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import org.springframework.http.server.PathContainer;
 import org.springframework.http.server.RequestPath;
 import org.springframework.web.util.ServletRequestPathUtils;
-
-import jakarta.servlet.http.HttpServletRequest;
 
 public final class AccessRoute {
 
     private AccessRoute() {}
 
-    public static Optional<AccessAction> classify(HttpServletRequest request) {
+    public static Optional<AccessRouteMatch> match(HttpServletRequest request) {
         String method = request.getMethod() == null ? "" : request.getMethod().toUpperCase();
         String path = normalize(pathWithinApplication(request));
-        return classify(method, path);
+        return match(method, path);
+    }
+
+    public static Optional<AccessAction> classify(HttpServletRequest request) {
+        return match(request).map(AccessRouteMatch::action);
     }
 
     public static Optional<AccessAction> classify(String method, String path) {
+        return match(method, path).map(AccessRouteMatch::action);
+    }
+
+    public static Optional<AccessRouteMatch> match(String method, String path) {
         String normalizedMethod = method == null ? "" : method.toUpperCase();
         String normalizedPath = normalize(path);
 
+        if ("/api/auth/login".equals(normalizedPath) && "POST".equals(normalizedMethod)) {
+            return Optional.of(new AccessRouteMatch(AccessAction.OPEN, Optional.empty()));
+        }
+        if ("/api/auth/logout".equals(normalizedPath) && "POST".equals(normalizedMethod)) {
+            return Optional.of(new AccessRouteMatch(AccessAction.OPEN, Optional.empty()));
+        }
+        if ("/api/auth/me".equals(normalizedPath) && "GET".equals(normalizedMethod)) {
+            return Optional.of(new AccessRouteMatch(AccessAction.AUTHENTICATED_READ, Optional.empty()));
+        }
+
+        Optional<String> edgeSiteId = extractEdgeConfigSiteId(normalizedPath);
+        if (edgeSiteId.isPresent()
+                && ("GET".equals(normalizedMethod) || "HEAD".equals(normalizedMethod))) {
+            return Optional.of(new AccessRouteMatch(AccessAction.EDGE_CONFIG_READ, edgeSiteId));
+        }
+
         if (isRegistry(normalizedPath)) {
             if ("GET".equals(normalizedMethod) || "HEAD".equals(normalizedMethod)) {
-                return Optional.of(AccessAction.OPEN);
+                return Optional.of(new AccessRouteMatch(AccessAction.AUTHENTICATED_READ, Optional.empty()));
             }
-            return Optional.of(AccessAction.REGISTRY_WRITE);
-        }
-        if (isEdgeConfig(normalizedPath)
-                && ("GET".equals(normalizedMethod) || "HEAD".equals(normalizedMethod))) {
-            return Optional.of(AccessAction.OPEN);
+            return Optional.of(new AccessRouteMatch(AccessAction.REGISTRY_WRITE, Optional.empty()));
         }
         if ("/api/commands/audit".equals(normalizedPath) && "GET".equals(normalizedMethod)) {
-            return Optional.of(AccessAction.OPEN);
+            return Optional.of(new AccessRouteMatch(AccessAction.AUTHENTICATED_READ, Optional.empty()));
         }
         if (isCommandsRoot(normalizedPath) && "POST".equals(normalizedMethod)) {
-            return Optional.of(AccessAction.COMMAND_WRITE);
+            return Optional.of(new AccessRouteMatch(AccessAction.COMMAND_WRITE, Optional.empty()));
         }
         if (isAccess(normalizedPath)) {
-            return Optional.of(AccessAction.ACTOR_ADMIN);
+            return Optional.of(new AccessRouteMatch(AccessAction.ACTOR_ADMIN, Optional.empty()));
         }
         if ("/api/onboarding/probe".equals(normalizedPath) && "POST".equals(normalizedMethod)) {
-            return Optional.of(AccessAction.ONBOARDING_PROBE);
+            return Optional.of(new AccessRouteMatch(AccessAction.ONBOARDING_PROBE, Optional.empty()));
         }
         if (isOnboardingTemplates(normalizedPath)
                 && ("GET".equals(normalizedMethod) || "HEAD".equals(normalizedMethod))) {
-            return Optional.of(AccessAction.OPEN);
+            return Optional.of(new AccessRouteMatch(AccessAction.AUTHENTICATED_READ, Optional.empty()));
         }
         if ("/api/onboarding/checklist".equals(normalizedPath)
                 && ("GET".equals(normalizedMethod) || "HEAD".equals(normalizedMethod))) {
-            return Optional.of(AccessAction.OPEN);
+            return Optional.of(new AccessRouteMatch(AccessAction.AUTHENTICATED_READ, Optional.empty()));
         }
-        if (startsWith(normalizedPath, "/api/telemetry")
-                || startsWith(normalizedPath, "/api/stream")
-                || startsWith(normalizedPath, "/actuator")) {
-            return Optional.of(AccessAction.OPEN);
+        if (startsWith(normalizedPath, "/api/telemetry")) {
+            if ("/api/telemetry/ingest".equals(normalizedPath) && "POST".equals(normalizedMethod)) {
+                return Optional.of(new AccessRouteMatch(AccessAction.TELEMETRY_INGEST, Optional.empty()));
+            }
+            if ("GET".equals(normalizedMethod) || "HEAD".equals(normalizedMethod)) {
+                return Optional.of(new AccessRouteMatch(AccessAction.AUTHENTICATED_READ, Optional.empty()));
+            }
+        }
+        if (startsWith(normalizedPath, "/api/stream")
+                && ("GET".equals(normalizedMethod) || "HEAD".equals(normalizedMethod))) {
+            return Optional.of(new AccessRouteMatch(AccessAction.AUTHENTICATED_READ, Optional.empty()));
+        }
+        if (startsWith(normalizedPath, "/actuator")) {
+            return Optional.of(new AccessRouteMatch(AccessAction.OPEN, Optional.empty()));
         }
         return Optional.empty();
+    }
+
+    static Optional<String> extractEdgeConfigSiteId(String normalizedPath) {
+        if (!startsWith(normalizedPath, "/api/edge/")) {
+            return Optional.empty();
+        }
+        PathContainer parsed = PathContainer.parsePath(normalizedPath);
+        List<String> segments = new ArrayList<>();
+        for (PathContainer.Element element : parsed.elements()) {
+            if (element instanceof PathContainer.PathSegment segment) {
+                segments.add(segment.valueToMatch());
+            }
+        }
+        if (segments.size() != 4) {
+            return Optional.empty();
+        }
+        if (!"api".equals(segments.get(0))
+                || !"edge".equals(segments.get(1))
+                || !"config".equals(segments.get(3))) {
+            return Optional.empty();
+        }
+        String siteId = segments.get(2);
+        return siteId.isBlank() ? Optional.empty() : Optional.of(siteId);
     }
 
     static String normalize(String path) {
@@ -95,20 +150,6 @@ public final class AccessRoute {
         return "/api/registry".equals(path) || startsWith(path, "/api/registry/");
     }
 
-    /** Exactly {@code /api/edge/{siteId}/config} — one path segment between edge and config. */
-    private static boolean isEdgeConfig(String path) {
-        if (!startsWith(path, "/api/edge/")) {
-            return false;
-        }
-        String rest = path.substring("/api/edge/".length());
-        int slash = rest.indexOf('/');
-        if (slash <= 0) {
-            return false;
-        }
-        String afterSite = rest.substring(slash + 1);
-        return "config".equals(afterSite);
-    }
-
     private static boolean isAccess(String path) {
         return "/api/access".equals(path) || startsWith(path, "/api/access/");
     }
@@ -117,7 +158,6 @@ public final class AccessRoute {
         return "/api/commands".equals(path);
     }
 
-    /** {@code /api/onboarding/templates} or {@code /api/onboarding/templates/{key}} — one segment after templates. */
     private static boolean isOnboardingTemplates(String path) {
         if ("/api/onboarding/templates".equals(path)) {
             return true;

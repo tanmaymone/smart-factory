@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/components/AuthProvider";
+import { canManageRegistry, canRunOnboardingProbe } from "@/lib/authPolicy";
 import { useEffect, useRef, useState } from "react";
 import { OnboardingStepBody } from "@/components/onboarding/OnboardingStepBody";
 import { OnboardingStepper } from "@/components/onboarding/OnboardingStepper";
@@ -45,6 +47,12 @@ export function OnboardingWizard({
   catalogError: boolean;
   replaceSelection: (siteId: string, lineId: string) => void;
 }) {
+  const { state: authState } = useAuth();
+  const canManage =
+    authState.status === "authenticated" && canManageRegistry(authState.user.role);
+  const canProbe =
+    authState.status === "authenticated" && canRunOnboardingProbe(authState.user.role);
+
   const [state, setState] = useState<WizardState>(() => emptyWizard(siteId, lineId));
   const [busy, setBusy] = useState<"create" | "save" | "probe" | "activate" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -86,7 +94,7 @@ export function OnboardingWizard({
     });
   }, [sites, state.siteId]);
 
-  const locked = busy != null;
+  const locked = busy != null || !canManage;
   const stepEntityLabels = resolveEntityLabels({
     siteLabel: state.siteLabel,
     lineLabel: state.lineLabel,
@@ -182,7 +190,7 @@ export function OnboardingWizard({
   };
 
   const probeConnection = async () => {
-    if (busy) return;
+    if (busy || !canProbe) return;
     const snapshot = beginProbe(stateRef.current);
     const captured = { probeRunId: snapshot.probeRunId, generation: snapshot.wizardGeneration, step3EditRevision: snapshot.step3EditRevision };
     setState(snapshot);

@@ -7,7 +7,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice(basePackageClasses = ActorAdminController.class)
+@RestControllerAdvice(
+        basePackageClasses = {ActorAdminController.class, AuthController.class, EdgeCredentialController.class})
 public class AccessExceptionHandler {
 
     @ExceptionHandler(AccessException.class)

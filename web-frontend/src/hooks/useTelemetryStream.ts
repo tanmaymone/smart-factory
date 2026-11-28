@@ -11,6 +11,7 @@ import {
   replaceSnapshot,
   type TelemetryStore,
 } from "@/lib/telemetryState";
+import { useAuth } from "@/components/AuthProvider";
 import { connectTelemetryStream } from "@/lib/streamSession";
 import type {
   CommandUpdateEvent,
@@ -34,7 +35,7 @@ function nextSnapshotId(): number {
 }
 
 async function fetchJson<T>(url: string, signal: AbortSignal): Promise<T> {
-  const response = await fetch(url, { signal, cache: "no-store" });
+  const response = await fetch(url, { signal, cache: "no-store", credentials: "same-origin" });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
   }
@@ -62,6 +63,7 @@ export function useTelemetryStream(
     useState<CommandUpdateEvent | null>(null);
   const connectionRef = useRef(0);
   const snapshotRef = useRef(0);
+  const { refresh } = useAuth();
 
   useEffect(() => {
     const connectionId = nextConnectionId();
@@ -124,6 +126,9 @@ export function useTelemetryStream(
       }
 
       session = connectTelemetryStream(siteId, lineId, {
+        onUnauthorized: () => {
+          void refresh();
+        },
         onStatus: (next) => {
           if (!isActiveConnection()) {
             return;

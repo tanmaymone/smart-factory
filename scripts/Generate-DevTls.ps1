@@ -78,16 +78,26 @@ New-ServerCert -Name "caddy" -SansDns @("caddy", "localhost", "host.docker.inter
 
 # --- Mosquitto passwd (docker) ---
 $PasswdPath = Join-Path $MosquittoDir "passwd"
-Remove-Item -Force $PasswdPath -ErrorAction SilentlyContinue
-docker run --rm `
-    -v "${MosquittoDir}:/out" `
-    eclipse-mosquitto:2 `
-    /bin/sh -c "mosquitto_passwd -b -c /out/passwd '$CentralUser' '$CentralPass' && mosquitto_passwd -b /out/passwd '$HealthUser' '$HealthPass' && mosquitto_passwd -b /out/passwd edge-INDORE '$EdgeIndorePass' && mosquitto_passwd -b /out/passwd edge-PUNE '$EdgePunePass' && chmod 644 /out/passwd"
+$PasswdContainer = "sf-dev-mosquitto-passwd-" + [guid]::NewGuid().ToString("n")
+try {
+    docker run --name $PasswdContainer eclipse-mosquitto:2 /bin/sh -c @"
+mosquitto_passwd -b -c /tmp/mq.pass '$CentralUser' '$CentralPass' &&
+mosquitto_passwd -b /tmp/mq.pass '$HealthUser' '$HealthPass' &&
+mosquitto_passwd -b /tmp/mq.pass edge-INDORE '$EdgeIndorePass' &&
+mosquitto_passwd -b /tmp/mq.pass edge-PUNE '$EdgePunePass'
+"@
+    if ($LASTEXITCODE -ne 0) {
+        throw "mosquitto_passwd via docker failed"
+    }
+    docker cp "${PasswdContainer}:/tmp/mq.pass" $PasswdPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "docker cp mosquitto passwd failed"
+    }
+} finally {
+    docker rm -f $PasswdContainer 2>$null | Out-Null
+}
 # Dev only: 644 so the mosquitto user can read the bind-mounted passwd on Windows Docker.
 # On the cloud VM after copying passwd: chown 1883:1883 infra/mosquitto/passwd && chmod 600 (or 640).
-if ($LASTEXITCODE -ne 0) {
-    throw "mosquitto_passwd via docker failed"
-}
 
 # ACL
 $AclPath = Join-Path $MosquittoDir "acl"
@@ -106,13 +116,21 @@ if (-not (Test-Path $EnvPath)) {
     New-Item -ItemType File -Path $EnvPath | Out-Null
 }
 
+$AdminPass = if ($env:APP_ADMIN_PASSWORD) { $env:APP_ADMIN_PASSWORD } else { "admin-dev" }
+$EdgeConfigToken = if ($env:EDGE_CONFIG_TOKEN) { $env:EDGE_CONFIG_TOKEN } else { "sf_edge_indore_dev_token" }
+
 $keys = @{
-    "MQTT_CENTRAL_PASSWORD" = $CentralPass
-    "MQTT_PASSWORD"         = $EdgeIndorePass
-    "MQTT_USERNAME"         = $EdgeIndoreUser
-    "MQTT_EDGE_USERNAME"    = $EdgeIndoreUser
-    "MQTT_EDGE_PASSWORD"    = $EdgeIndorePass
-    "MQTT_HEALTH_PASSWORD"  = $HealthPass
+    "MQTT_CENTRAL_PASSWORD"      = $CentralPass
+    "MQTT_PASSWORD"              = $EdgeIndorePass
+    "MQTT_USERNAME"              = $EdgeIndoreUser
+    "MQTT_EDGE_USERNAME"         = $EdgeIndoreUser
+    "MQTT_EDGE_PASSWORD"         = $EdgeIndorePass
+    "MQTT_HEALTH_PASSWORD"       = $HealthPass
+    "APP_ADMIN_USERNAME"         = "admin@factory.local"
+    "APP_ADMIN_PASSWORD"         = $AdminPass
+    "APP_ADMIN_DISPLAY_NAME"     = "Dev Admin"
+    "APP_EDGE_BOOTSTRAP_TOKENS"  = "INDORE:$EdgeConfigToken"
+    "EDGE_CONFIG_TOKEN"          = $EdgeConfigToken
 }
 
 $content = Get-Content $EnvPath -Raw -ErrorAction SilentlyContinue

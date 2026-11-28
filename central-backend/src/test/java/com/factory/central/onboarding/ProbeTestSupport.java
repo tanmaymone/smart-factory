@@ -5,7 +5,6 @@ import com.factory.central.access.ActorContext;
 import com.factory.central.access.ActorResolution;
 import com.factory.central.access.ActorResolver;
 import com.factory.central.access.ActorRole;
-import com.factory.central.access.BootstrapActorResolver;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
@@ -18,7 +17,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 /** Wires the probe controller behind the real AccessInterceptor, as production does. */
 final class ProbeTestSupport {
 
-    static final String ADMIN_TOKEN = "setup-token";
+    static final String TEST_ROLE_HEADER = "X-Test-Role";
+    static final String TEST_ACTOR_HEADER = "X-Test-Actor-Id";
     static final String OPERATOR_ACTOR = "operator-1";
 
     private ProbeTestSupport() {}
@@ -51,12 +51,12 @@ final class ProbeTestSupport {
         return new ObjectMapper().setDefaultPropertyInclusion(JsonInclude.Include.ALWAYS);
     }
 
-    static String setupTokenHeader() {
-        return BootstrapActorResolver.SETUP_TOKEN_HEADER;
+    static String onboardingAdminHeader() {
+        return TEST_ROLE_HEADER;
     }
 
     static String actorIdHeader() {
-        return BootstrapActorResolver.ACTOR_ID_HEADER;
+        return TEST_ACTOR_HEADER;
     }
 
     /** Walks parent directories until contracts/onboarding-probe-validation.json exists. */
@@ -75,14 +75,12 @@ final class ProbeTestSupport {
 
     private static ActorResolver resolver() {
         return request -> {
-            String token = request.getHeader(BootstrapActorResolver.SETUP_TOKEN_HEADER);
-            if (token != null && !token.isEmpty()) {
-                return ADMIN_TOKEN.equals(token)
-                        ? new ActorResolution.Resolved(
-                                new ActorContext("admin", "Admin", ActorRole.ONBOARDING_ADMIN))
-                        : new ActorResolution.Rejected();
+            String role = request.getHeader(TEST_ROLE_HEADER);
+            if ("ONBOARDING_ADMIN".equals(role)) {
+                return new ActorResolution.Resolved(
+                        new ActorContext("admin", "Admin", ActorRole.ONBOARDING_ADMIN));
             }
-            String actorId = request.getHeader(BootstrapActorResolver.ACTOR_ID_HEADER);
+            String actorId = request.getHeader(TEST_ACTOR_HEADER);
             if (OPERATOR_ACTOR.equals(actorId)) {
                 return new ActorResolution.Resolved(
                         new ActorContext(OPERATOR_ACTOR, "Operator", ActorRole.OPERATOR));

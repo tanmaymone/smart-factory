@@ -8,6 +8,9 @@ import { ConnectionHealth } from "@/components/ConnectionHealth";
 import { SiteLineSwitcher } from "@/components/SiteLineSwitcher";
 import type { SiteInfo } from "@/lib/sites";
 import type { ConnectionStatus } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/components/AuthProvider";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -65,6 +68,7 @@ export function ConsoleHeader({
   status?: ConnectionStatus;
 }) {
   const pathname = usePathname();
+  const { state: authState, signOut } = useAuth();
   const qs = `?siteId=${encodeURIComponent(siteId)}&lineId=${encodeURIComponent(lineId)}`;
 
   return (
@@ -101,6 +105,19 @@ export function ConsoleHeader({
           onLineChange={onLineChange}
         />
         {status ? <ConnectionHealth status={status} /> : null}
+        {authState.status === "authenticated" ? (
+          <div className="flex items-center gap-2">
+            <div className="hidden text-right sm:block">
+              <p className="text-xs text-slate-300">{authState.user.displayName}</p>
+              <Badge variant="slate" className="mt-0.5 font-mono text-[10px] uppercase">
+                {authState.user.role}
+              </Badge>
+            </div>
+            <Button size="sm" variant="secondary" onClick={() => void signOut()}>
+              Sign out
+            </Button>
+          </div>
+        ) : null}
       </div>
     </header>
   );

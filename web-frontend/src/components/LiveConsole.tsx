@@ -12,6 +12,8 @@ import { TelemetryTable } from "@/components/TelemetryTable";
 import { WriteCommandModal } from "@/components/WriteCommandModal";
 import { useTelemetryStream } from "@/hooks/useTelemetryStream";
 import { useSiteLineSelection } from "@/hooks/useSiteLineSelection";
+import { useAuth } from "@/components/AuthProvider";
+import { canWriteCommands } from "@/lib/authPolicy";
 import { consoleMountState } from "@/lib/catalogSelection";
 import { isRegistryLive } from "@/lib/registryLiveness";
 import type { TelemetryRow } from "@/lib/types";
@@ -86,7 +88,10 @@ function LiveConsoleBody({
   lineLifecycle?: "DRAFT" | "VERIFIED" | "ACTIVE";
 }) {
   const [writeRow, setWriteRow] = useState<TelemetryRow | null>(null);
+  const { state: authState } = useAuth();
   const stream = useTelemetryStream(siteId, lineId);
+  const writesAllowed =
+    authState.status === "authenticated" && canWriteCommands(authState.user.role);
   const rows = useMemo(
     () => stream.rows.filter((row) => isRegistryLive({
       siteLifecycle,
@@ -105,8 +110,10 @@ function LiveConsoleBody({
         rows={rows}
         siteLifecycle={siteLifecycle}
         lineLifecycle={lineLifecycle}
-        isWriteEnabled={(row) => isRegistryLive({ siteLifecycle, lineLifecycle, tagLifecycle: row.lifecycle })}
-        onWrite={setWriteRow}
+        isWriteEnabled={(row) =>
+          writesAllowed &&
+          isRegistryLive({ siteLifecycle, lineLifecycle, tagLifecycle: row.lifecycle })}
+        onWrite={writesAllowed ? setWriteRow : undefined}
       />
       <WriteCommandModal
         open={writeRow != null}

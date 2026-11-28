@@ -12,6 +12,7 @@ export type StreamHandlers = {
   onTag?: (data: string) => void;
   onAlarm?: (data: string) => void;
   onCommand?: (event: CommandUpdateEvent) => void;
+  onUnauthorized?: () => void;
 };
 
 export type StreamSession = {
@@ -151,6 +152,7 @@ export function connectTelemetryStream(
     try {
       const response = await fetch(`/api/stream/telemetry?${params}`, {
         headers: { Accept: "text/event-stream" },
+        credentials: "same-origin",
         signal: controller.signal,
         cache: "no-store",
       });
@@ -163,6 +165,11 @@ export function connectTelemetryStream(
           body = null;
         }
         if (aborted) {
+          return;
+        }
+        if (response.status === 401) {
+          handlers.onUnauthorized?.();
+          handlers.onStatus("disconnected");
           return;
         }
         scheduleRetry(classifyStreamFailure(response.status, body));

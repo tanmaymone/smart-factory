@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { OPERATOR_STORAGE_KEY, submitCommand } from "@/lib/commands";
+import { useAuth } from "@/components/AuthProvider";
+import { submitCommand } from "@/lib/commands";
 import {
   canSubmitCommand,
   emptyTargetDraft,
@@ -52,8 +53,8 @@ export function WriteCommandModal({
 }) {
   const [snapshot, setSnapshot] = useState<WriteSnapshot | null>(null);
   const [draft, setDraft] = useState<TargetDraft>(emptyTargetDraft(null));
-  const [requestedBy, setRequestedBy] = useState("");
   const [reason, setReason] = useState("");
+  const { state: authState } = useAuth();
   const [confirmed, setConfirmed] = useState(false);
   const [phase, setPhase] = useState<"idle" | "submitting" | "accepted" | "rejected">(
     "idle",
@@ -80,11 +81,6 @@ export function WriteCommandModal({
     setCommandId(null);
     setStatus(null);
     setError(null);
-    try {
-      setRequestedBy(sessionStorage.getItem(OPERATOR_STORAGE_KEY) ?? "");
-    } catch {
-      setRequestedBy("");
-    }
   }, [open, row]);
 
   useEffect(() => {
@@ -122,7 +118,9 @@ export function WriteCommandModal({
   }, [snapshot, liveRow]);
 
   const blockReason = writeBlock(liveRow ?? row);
-  const ready = canSubmitCommand({ draft, requestedBy, reason, confirmed }) && !blockReason;
+  const operatorId =
+    authState.status === "authenticated" ? authState.user.actorId : "";
+  const ready = canSubmitCommand({ draft, reason, confirmed }) && !blockReason && Boolean(operatorId);
 
   const onSubmit = async () => {
     if (!row?.tagId || !ready || phase === "submitting") {
@@ -131,17 +129,11 @@ export function WriteCommandModal({
     setPhase("submitting");
     setStatus("Submitting");
     setError(null);
-    try {
-      sessionStorage.setItem(OPERATOR_STORAGE_KEY, requestedBy.trim());
-    } catch {
-      // ignore
-    }
     const result = await submitCommand({
       siteId,
       lineId,
       tagId: row.tagId,
       targetValue: resolveTargetValue(draft),
-      requestedBy,
       reason,
     });
     if (result.ok) {
@@ -175,14 +167,10 @@ export function WriteCommandModal({
             disabled={phase === "submitting"}
           />
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="requested-by">Operator</Label>
-            <Input
-              id="requested-by"
-              value={requestedBy}
-              onChange={(event) => setRequestedBy(event.target.value)}
-              disabled={phase === "submitting"}
-              placeholder="operator@factory.com"
-            />
+            <Label>Operator</Label>
+            <p className="mono font-mono tabular-nums text-sm text-slate-200">
+              {operatorId || "—"}
+            </p>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="reason">Logbook reason</Label>

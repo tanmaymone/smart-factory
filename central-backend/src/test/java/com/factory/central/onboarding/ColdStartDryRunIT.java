@@ -7,7 +7,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.factory.central.access.BootstrapActorResolver;
+import com.factory.central.access.AuthTestSupport;
+import jakarta.servlet.http.Cookie;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.factory.central.registry.LineRepository;
 import com.factory.central.registry.SiteRepository;
 import com.factory.central.registry.TagMappingRepository;
@@ -64,9 +66,13 @@ class ColdStartDryRunIT {
                 "app.mqtt.broker-url",
                 () -> "tcp://" + mosquitto.getHost() + ":" + mosquitto.getMappedPort(1883));
         registry.add("app.mqtt.client-id", () -> "central-cold-start-it-" + UUID.randomUUID());
-        registry.add("app.bootstrap.token", () -> "it-bootstrap-token");
+        AuthTestSupport.registerBootstrapAdmin(registry);
+        AuthTestSupport.registerBootstrapEdgeTokens(registry);
         registry.add("app.registry.seed-enabled", () -> "false");
     }
+
+    @Autowired
+    private MockMvc springMvc;
 
     @Autowired
     private WebApplicationContext webApplicationContext;
@@ -83,13 +89,16 @@ class ColdStartDryRunIT {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     private MockMvc mockMvc;
+    private Cookie adminCookie;
 
     @BeforeEach
-    void setUpMockMvc() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
-                .defaultRequest(get("/").header(BootstrapActorResolver.SETUP_TOKEN_HEADER, "it-bootstrap-token"))
-                .build();
+    void setUpMockMvc() throws Exception {
+        adminCookie = AuthTestSupport.adminSession(springMvc);
+        mockMvc = AuthTestSupport.secureMvc(webApplicationContext);
     }
 
     @Test
@@ -98,12 +107,11 @@ class ColdStartDryRunIT {
         assertThat(lineRepository.count()).isZero();
         assertThat(tagMappingRepository.count()).isZero();
 
-        mockMvc.perform(get("/api/edge/SITE-COLD/config"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("SITE_NOT_FOUND"));
+        mockMvc.perform(get("/api/edge/SITE-COLD/config")).andExpect(status().isUnauthorized());
 
         mockMvc.perform(
                         post("/api/registry/sites")
+                                .cookie(adminCookie)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(
                                         """
@@ -113,6 +121,7 @@ class ColdStartDryRunIT {
 
         mockMvc.perform(
                         post("/api/registry/lines")
+                                .cookie(adminCookie)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(
                                         """
@@ -122,6 +131,7 @@ class ColdStartDryRunIT {
 
         MvcResult template =
                 mockMvc.perform(get("/api/onboarding/templates/reactor")
+                                .cookie(adminCookie)
                                 .param("format", "csv")
                                 .param("siteId", "SITE-COLD")
                                 .param("lineId", "REACTOR-01")
@@ -131,6 +141,7 @@ class ColdStartDryRunIT {
                         .andReturn();
 
         mockMvc.perform(post("/api/registry/tags/batch")
+                        .cookie(adminCookie)
                         .contentType(MediaType.valueOf("text/csv"))
                         .content(template.getResponse().getContentAsString(StandardCharsets.UTF_8)))
                 .andExpect(status().isOk())
@@ -138,6 +149,7 @@ class ColdStartDryRunIT {
                 .andExpect(jsonPath("$.failed").value(0));
 
         mockMvc.perform(put("/api/registry/sites/SITE-COLD")
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -146,6 +158,7 @@ class ColdStartDryRunIT {
                 .andExpect(status().isOk());
 
         mockMvc.perform(put("/api/registry/lines/SITE-COLD/REACTOR-01")
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Reactor Line 1\",\"lifecycle\":\"ACTIVE\"}"))
                 .andExpect(status().isOk());
@@ -155,7 +168,22 @@ class ColdStartDryRunIT {
                 "SITE-COLD",
                 "REACTOR-01");
 
-        mockMvc.perform(get("/api/edge/SITE-COLD/config"))
+        MvcResult credential = mockMvc.perform(
+                        post("/api/access/edge-credentials")
+                                .cookie(adminCookie)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {"siteId":"SITE-COLD","label":"cold-start"}
+                                        """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String token = objectMapper
+                .readTree(credential.getResponse().getContentAsString())
+                .get("token")
+                .asText();
+
+        mockMvc.perform(get("/api/edge/SITE-COLD/config").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.siteId").value("SITE-COLD"))
                 .andExpect(jsonPath("$.lines[0].tags.length()").value(5));

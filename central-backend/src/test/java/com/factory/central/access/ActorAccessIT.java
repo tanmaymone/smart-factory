@@ -5,6 +5,7 @@ import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -12,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.factory.central.command.CommandAuditLogRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.UUID;
@@ -25,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -40,9 +43,13 @@ import org.testcontainers.utility.MountableFile;
 @AutoConfigureMockMvc
 @Testcontainers
 @Tag("SF-ACCESS")
+@Tag("SF-M42")
 class ActorAccessIT {
 
-    private static final String TOKEN = "it-bootstrap-token";
+    private static final String VIEWER_PASSWORD = "viewer-pass";
+    private static final String OPERATOR_PASSWORD = "operator-pass";
+    private static final String PLANT_OP_PASSWORD = "plant-op-pass";
+    private static final String PLANT_SUP_PASSWORD = "plant-sup-pass";
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
@@ -68,7 +75,8 @@ class ActorAccessIT {
                 "app.mqtt.broker-url",
                 () -> "tcp://" + mosquitto.getHost() + ":" + mosquitto.getMappedPort(1883));
         registry.add("app.mqtt.client-id", () -> "central-backend-access-it-" + UUID.randomUUID());
-        registry.add("app.bootstrap.token", () -> TOKEN);
+        AuthTestSupport.registerBootstrapAdmin(registry);
+        AuthTestSupport.registerBootstrapEdgeTokens(registry);
     }
 
     @Autowired
@@ -81,15 +89,29 @@ class ActorAccessIT {
     private ActorRepository actorRepository;
 
     @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
     private CommandAuditLogRepository auditLogRepository;
 
     @Test
     void enforcesRolesAndDerivesAuditIdentity() throws Exception {
-        seedActor("viewer@factory.com", "Viewer", ActorRole.VIEWER);
-        seedActor("operator@factory.com", "Operator", ActorRole.OPERATOR);
+        AuthTestSupport.seedActor(
+                actorRepository, passwordEncoder, "viewer@factory.com", "Viewer", ActorRole.VIEWER, VIEWER_PASSWORD);
+        AuthTestSupport.seedActor(
+                actorRepository,
+                passwordEncoder,
+                "operator@factory.com",
+                "Operator",
+                ActorRole.OPERATOR,
+                OPERATOR_PASSWORD);
+
+        Cookie viewerCookie = AuthTestSupport.login(mockMvc, "viewer@factory.com", VIEWER_PASSWORD);
+        Cookie operatorCookie = AuthTestSupport.login(mockMvc, "operator@factory.com", OPERATOR_PASSWORD);
+        Cookie adminCookie = AuthTestSupport.adminSession(mockMvc);
 
         mockMvc.perform(post("/api/registry/sites")
-                        .header(BootstrapActorResolver.ACTOR_ID_HEADER, "viewer@factory.com")
+                        .cookie(viewerCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"siteCode\":\"NASHIK\",\"name\":\"Nashik\",\"timezone\":\"Asia/Kolkata\"}"))
                 .andExpect(status().isForbidden())
@@ -97,7 +119,7 @@ class ActorAccessIT {
                 .andExpect(jsonPath("$.fieldErrors").isArray());
 
         mockMvc.perform(post("/api/registry/sites")
-                        .header(BootstrapActorResolver.ACTOR_ID_HEADER, "operator@factory.com")
+                        .cookie(operatorCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"siteCode\":\"NASHIK\",\"name\":\"Nashik\",\"timezone\":\"Asia/Kolkata\"}"))
                 .andExpect(status().isForbidden())
@@ -112,7 +134,7 @@ class ActorAccessIT {
                 .andExpect(jsonPath("$.fieldErrors").isArray());
 
         mockMvc.perform(post("/api/registry/sites")
-                        .header(BootstrapActorResolver.ACTOR_ID_HEADER, "   ")
+                        .header(AuthTestSupport.LEGACY_ACTOR_HEADER, "   ")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"siteCode\":\"NASHIK\",\"name\":\"Nashik\",\"timezone\":\"Asia/Kolkata\"}"))
                 .andExpect(status().isUnauthorized())
@@ -120,8 +142,8 @@ class ActorAccessIT {
 
         long beforeWrongToken = auditLogRepository.count();
         mockMvc.perform(post("/api/commands")
-                        .header(BootstrapActorResolver.SETUP_TOKEN_HEADER, "wrong-token")
-                        .header(BootstrapActorResolver.ACTOR_ID_HEADER, "operator@factory.com")
+                        .header(AuthTestSupport.LEGACY_SETUP_HEADER, "wrong-token")
+                        .header(AuthTestSupport.LEGACY_ACTOR_HEADER, "operator@factory.com")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -136,44 +158,53 @@ class ActorAccessIT {
                                 """))
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(post("/api/registry/sites")
-                        .header(BootstrapActorResolver.SETUP_TOKEN_HEADER, "wrong-token")
-                        .header(BootstrapActorResolver.ACTOR_ID_HEADER, "operator@factory.com")
+                        .header(AuthTestSupport.LEGACY_SETUP_HEADER, "wrong-token")
+                        .header(AuthTestSupport.LEGACY_ACTOR_HEADER, "operator@factory.com")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"siteCode\":\"NASHIK\",\"name\":\"Nashik\",\"timezone\":\"Asia/Kolkata\"}"))
                 .andExpect(status().isUnauthorized());
         assertThat(auditLogRepository.count()).isEqualTo(beforeWrongToken);
 
         mockMvc.perform(post("/api/registry/sites")
-                        .header(BootstrapActorResolver.SETUP_TOKEN_HEADER, TOKEN)
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"siteCode\":\"NASHIK\",\"name\":\"Nashik\",\"timezone\":\"Asia/Kolkata\"}"))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post("/api/access/actors")
-                        .header(BootstrapActorResolver.SETUP_TOKEN_HEADER, TOKEN)
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"actorId\":\"op@plant\",\"displayName\":\"Plant Operator\",\"role\":\"OPERATOR\"}"))
+                                """
+                                {"actorId":"op@plant","displayName":"Plant Operator","role":"OPERATOR","password":"%s"}
+                                """
+                                        .formatted(PLANT_OP_PASSWORD)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.actorId").value("op@plant"));
 
         mockMvc.perform(post("/api/access/actors")
-                        .header(BootstrapActorResolver.SETUP_TOKEN_HEADER, TOKEN)
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"actorId\":\"sup@plant\",\"displayName\":\"Plant Supervisor\",\"role\":\"SUPERVISOR\"}"))
+                                """
+                                {"actorId":"sup@plant","displayName":"Plant Supervisor","role":"SUPERVISOR","password":"%s"}
+                                """
+                                        .formatted(PLANT_SUP_PASSWORD)))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post("/api/access/actors")
-                        .header(BootstrapActorResolver.SETUP_TOKEN_HEADER, TOKEN)
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"actorId\":\"op@plant\",\"displayName\":\"Updated Operator\",\"role\":\"OPERATOR\"}"))
+                                """
+                                {"actorId":"op@plant","displayName":"Updated Operator","role":"OPERATOR","password":"%s"}
+                                """
+                                        .formatted(PLANT_OP_PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.displayName").value("Updated Operator"));
 
         mockMvc.perform(post("/api/commands")
-                        .header(BootstrapActorResolver.ACTOR_ID_HEADER, "OP@plant")
+                        .header(AuthTestSupport.LEGACY_ACTOR_HEADER, "OP@plant")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -189,40 +220,43 @@ class ActorAccessIT {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value(AccessPolicy.UNAUTHENTICATED_MESSAGE));
 
-        mockMvc.perform(get("/api/access/actors").header(BootstrapActorResolver.SETUP_TOKEN_HEADER, TOKEN))
+        mockMvc.perform(get("/api/access/actors").cookie(adminCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.actorId=='op@plant')]").exists())
                 .andExpect(jsonPath("$[?(@.actorId=='sup@plant')]").exists());
 
         mockMvc.perform(post("/api/access/actors")
-                        .header(BootstrapActorResolver.SETUP_TOKEN_HEADER, TOKEN)
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"actorId\":\"admin-row\",\"displayName\":\"Nope\",\"role\":\"ONBOARDING_ADMIN\"}"))
+                                "{\"actorId\":\"bad-role\",\"displayName\":\"Nope\",\"role\":\"SUPERADMIN\",\"password\":\"nope-pass-1\"}"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("ROLE_NOT_ASSIGNABLE"))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("role"));
 
         mockMvc.perform(post("/api/access/actors")
-                        .header(BootstrapActorResolver.SETUP_TOKEN_HEADER, TOKEN)
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"actorId\":\"   \",\"displayName\":\"Blank\",\"role\":\"OPERATOR\"}"))
+                        .content("{\"actorId\":\"   \",\"displayName\":\"Blank\",\"role\":\"OPERATOR\",\"password\":\"blank-pass\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("actorId"));
 
         mockMvc.perform(post("/api/access/actors")
-                        .header(BootstrapActorResolver.ACTOR_ID_HEADER, "operator@factory.com")
+                        .cookie(operatorCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"actorId\":\"x@plant\",\"displayName\":\"X\",\"role\":\"OPERATOR\"}"))
+                                "{\"actorId\":\"x@plant\",\"displayName\":\"X\",\"role\":\"OPERATOR\",\"password\":\"x-pass-1234\"}"))
                 .andExpect(status().isForbidden());
 
         mockMvc.perform(post("/api/access/actors")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
-                                "{\"actorId\":\"y@plant\",\"displayName\":\"Y\",\"role\":\"OPERATOR\"}"))
+                                "{\"actorId\":\"y@plant\",\"displayName\":\"Y\",\"role\":\"OPERATOR\",\"password\":\"y-pass-1234\"}"))
                 .andExpect(status().isUnauthorized());
+
+        Cookie opCookie = AuthTestSupport.login(mockMvc, "op@plant", PLANT_OP_PASSWORD);
+        Cookie supCookie = AuthTestSupport.login(mockMvc, "sup@plant", PLANT_SUP_PASSWORD);
 
         CopyOnWriteArrayList<String> published = new CopyOnWriteArrayList<>();
         MqttClient client = testClient("access-cmd-" + UUID.randomUUID());
@@ -234,7 +268,7 @@ class ActorAccessIT {
                             published.add(new String(message.getPayload(), StandardCharsets.UTF_8)));
 
             MvcResult accepted = mockMvc.perform(post("/api/commands")
-                            .header(BootstrapActorResolver.ACTOR_ID_HEADER, "op@plant")
+                            .cookie(opCookie)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(
                                     """
@@ -260,11 +294,10 @@ class ActorAccessIT {
             await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> assertThat(published).isNotEmpty());
             JsonNode mqtt = objectMapper.readTree(published.getFirst());
             assertThat(mqtt.get("issuedBy").asText()).isEqualTo("op@plant");
-            assertThat(mqtt.toString()).doesNotContain(TOKEN);
             assertThat(mqtt.toString()).doesNotContain("spoofed@factory.com");
 
             MvcResult supervisorAccepted = mockMvc.perform(post("/api/commands")
-                            .header(BootstrapActorResolver.ACTOR_ID_HEADER, "sup@plant")
+                            .cookie(supCookie)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(
                                     """
@@ -294,7 +327,7 @@ class ActorAccessIT {
 
         long beforeReject = auditLogRepository.count();
         mockMvc.perform(post("/api/commands")
-                        .header(BootstrapActorResolver.ACTOR_ID_HEADER, "op@plant")
+                        .cookie(opCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -318,7 +351,7 @@ class ActorAccessIT {
                 .isEqualTo("op@plant");
 
         mockMvc.perform(post("/api/commands")
-                        .header(BootstrapActorResolver.ACTOR_ID_HEADER, "viewer@factory.com")
+                        .cookie(viewerCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -333,7 +366,7 @@ class ActorAccessIT {
                 .andExpect(status().isForbidden());
 
         mockMvc.perform(post("/api/commands")
-                        .header(BootstrapActorResolver.SETUP_TOKEN_HEADER, TOKEN)
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -347,32 +380,49 @@ class ActorAccessIT {
                                 """))
                 .andExpect(status().isForbidden());
 
-        mockMvc.perform(get("/api/registry/sites")).andExpect(status().isOk());
-        mockMvc.perform(get("/api/commands/audit")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/registry/sites")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/commands/audit")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
 
-        mockMvc.perform(get("/api/registry/sites").header(BootstrapActorResolver.SETUP_TOKEN_HEADER, "wrong"))
+        mockMvc.perform(get("/api/registry/sites").header(AuthTestSupport.LEGACY_SETUP_HEADER, "wrong"))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/registry/sites").header(BootstrapActorResolver.ACTOR_ID_HEADER, "missing@x"))
+        mockMvc.perform(get("/api/registry/sites").header(AuthTestSupport.LEGACY_ACTOR_HEADER, "missing@x"))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/registry/sites").header(BootstrapActorResolver.ACTOR_ID_HEADER, "viewer@factory.com"))
+        mockMvc.perform(get("/api/registry/sites").header(AuthTestSupport.LEGACY_ACTOR_HEADER, "viewer@factory.com"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/registry/sites").cookie(viewerCookie)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/commands/audit").cookie(viewerCookie)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/onboarding/checklist").cookie(viewerCookie)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/telemetry/latest")
+                        .cookie(viewerCookie)
+                        .param("siteId", "INDORE")
+                        .param("lineId", "LINE-01")
+                        .param("tagCode", "REACTOR_TEMP_C"))
                 .andExpect(status().isOk());
-        mockMvc.perform(post("/api/registry/sites")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"siteCode\":\"PUNE2\",\"name\":\"Pune 2\",\"timezone\":\"Asia/Kolkata\"}"))
-                .andExpect(status().isUnauthorized());
 
-        MvcResult stream = mockMvc.perform(get("/api/stream/telemetry"))
-                .andExpect(request().asyncStarted())
-                .andReturn();
-        assertThat(stream.getResponse().getStatus()).isLessThan(400);
-        mockMvc.perform(get("/api/stream/telemetry").header(BootstrapActorResolver.SETUP_TOKEN_HEADER, TOKEN))
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"actorId":"viewer@factory.com","password":"%s"}
+                                """
+                                        .formatted(VIEWER_PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(cookie().httpOnly(AuthTestSupport.SESSION_COOKIE, true))
+                .andExpect(cookie().exists(AuthTestSupport.SESSION_COOKIE));
+
+        mockMvc.perform(get("/api/stream/telemetry")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/stream/telemetry").cookie(viewerCookie))
                 .andExpect(request().asyncStarted());
+
         mockMvc.perform(post("/api/registry/sites")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"siteCode\":\"PUNE3\",\"name\":\"Pune 3\",\"timezone\":\"Asia/Kolkata\"}"))
                 .andExpect(status().isUnauthorized());
 
-        MvcResult ingest = mockMvc.perform(post("/api/telemetry/ingest")
+        mockMvc.perform(post("/api/telemetry/ingest")
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -380,11 +430,12 @@ class ActorAccessIT {
                                   "siteId":"INDORE",
                                   "lineId":"LINE-01",
                                   "timestamp":"2026-11-19T12:00:00Z",
-                                  "readings":[]
+                                  "readings":[
+                                    {"tagCode":"REACTOR_TEMP_C","value":40.0,"quality":"GOOD"}
+                                  ]
                                 }
                                 """))
-                .andReturn();
-        assertThat(ingest.getResponse().getStatus()).isNotEqualTo(401);
+                .andExpect(status().isAccepted());
 
         mockMvc.perform(post("/api/does-not-exist")).andExpect(status().isNotFound());
         mockMvc.perform(delete("/api/commands")).andExpect(status().isMethodNotAllowed());
@@ -393,14 +444,13 @@ class ActorAccessIT {
                         .content("{}"))
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(post("/api/registry/not-a-resource")
-                        .header(BootstrapActorResolver.SETUP_TOKEN_HEADER, TOKEN)
+                        .cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isNotFound());
-    }
 
-    private void seedActor(String actorId, String displayName, ActorRole role) {
-        actorRepository.save(new ActorEntity(actorId, displayName, role));
+        mockMvc.perform(post("/api/auth/logout").cookie(adminCookie)).andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/auth/me").cookie(adminCookie)).andExpect(status().isUnauthorized());
     }
 
     private MqttClient testClient(String clientId) throws Exception {

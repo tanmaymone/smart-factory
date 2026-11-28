@@ -6,7 +6,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.factory.central.access.AccessPolicy;
-import com.factory.central.access.BootstrapActorResolver;
+import com.factory.central.access.AuthTestSupport;
+import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
@@ -66,8 +67,11 @@ class OnboardingChecklistApiIT {
                 "app.mqtt.broker-url",
                 () -> "tcp://" + mosquitto.getHost() + ":" + mosquitto.getMappedPort(1883));
         registry.add("app.mqtt.client-id", () -> "central-onboarding-checklist-it-" + UUID.randomUUID());
-        registry.add("app.bootstrap.token", () -> "it-bootstrap-token");
+        AuthTestSupport.registerBootstrapAdmin(registry);
     }
+
+    @Autowired
+    private MockMvc springMvc;
 
     @Autowired
     private WebApplicationContext webApplicationContext;
@@ -75,10 +79,9 @@ class OnboardingChecklistApiIT {
     private MockMvc mockMvc;
 
     @BeforeEach
-    void setUpMockMvc() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
-                .defaultRequest(get("/").header(BootstrapActorResolver.SETUP_TOKEN_HEADER, "it-bootstrap-token"))
-                .build();
+    void setUpMockMvc() throws Exception {
+        Cookie admin = AuthTestSupport.adminSession(springMvc);
+        mockMvc = AuthTestSupport.secureMvc(webApplicationContext, admin);
     }
 
     @Test
@@ -112,21 +115,21 @@ class OnboardingChecklistApiIT {
 
     @Test
     void openOnboardingRoutesEnforceInvalidActorHeaders() throws Exception {
-        mockMvc.perform(get("/api/onboarding/templates")).andExpect(status().isOk());
-        mockMvc.perform(get("/api/onboarding/templates/reactor")).andExpect(status().isOk());
-        mockMvc.perform(get("/api/onboarding/checklist")).andExpect(status().isOk());
-
         MockMvc anonymous =
-                MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+                AuthTestSupport.secureMvc(webApplicationContext);
+
+        anonymous.perform(get("/api/onboarding/templates")).andExpect(status().isUnauthorized());
+        anonymous.perform(get("/api/onboarding/templates/reactor")).andExpect(status().isUnauthorized());
+        anonymous.perform(get("/api/onboarding/checklist")).andExpect(status().isUnauthorized());
 
         anonymous
-                .perform(get("/api/onboarding/templates").header(BootstrapActorResolver.SETUP_TOKEN_HEADER, "wrong"))
+                .perform(get("/api/onboarding/templates").header(AuthTestSupport.LEGACY_SETUP_HEADER, "wrong"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
                 .andExpect(jsonPath("$.message").value(AccessPolicy.UNAUTHENTICATED_MESSAGE));
 
         anonymous
-                .perform(get("/api/onboarding/checklist").header(BootstrapActorResolver.ACTOR_ID_HEADER, "missing@x"))
+                .perform(get("/api/onboarding/checklist").header(AuthTestSupport.LEGACY_ACTOR_HEADER, "missing@x"))
                 .andExpect(status().isUnauthorized());
     }
 }

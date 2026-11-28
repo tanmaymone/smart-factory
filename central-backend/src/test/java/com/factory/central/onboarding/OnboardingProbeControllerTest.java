@@ -134,7 +134,7 @@ class OnboardingProbeControllerTest {
     void unboundableBodyIsInvalidRequestBodyNot422(String body) throws Exception {
         mockMvc(true)
                 .perform(post(PATH)
-                        .header(ProbeTestSupport.setupTokenHeader(), ProbeTestSupport.ADMIN_TOKEN)
+                        .header(ProbeTestSupport.onboardingAdminHeader(), "ONBOARDING_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body.getBytes(UTF_8)))
                 .andExpect(status().isBadRequest())
@@ -152,7 +152,7 @@ class OnboardingProbeControllerTest {
     void semanticFailureIs422AndIsNotForwarded() throws Exception {
         mockMvc(true)
                 .perform(post(PATH)
-                        .header(ProbeTestSupport.setupTokenHeader(), ProbeTestSupport.ADMIN_TOKEN)
+                        .header(ProbeTestSupport.onboardingAdminHeader(), "ONBOARDING_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"endpointUrl\":\"opc.tcp://\",\"securityMode\":\"none\"}"))
                 .andExpect(status().isUnprocessableEntity())
@@ -173,7 +173,7 @@ class OnboardingProbeControllerTest {
         }) {
             mockMvc(true)
                     .perform(post(PATH)
-                            .header(ProbeTestSupport.setupTokenHeader(), ProbeTestSupport.ADMIN_TOKEN)
+                            .header(ProbeTestSupport.onboardingAdminHeader(), "ONBOARDING_ADMIN")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"endpointUrl\":\"" + endpointUrl + "\",\"securityMode\":\"None\"}"))
                     .andExpect(status().isOk());
@@ -211,7 +211,7 @@ class OnboardingProbeControllerTest {
                 }
             };
             request.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            request.addHeader(ProbeTestSupport.setupTokenHeader(), ProbeTestSupport.ADMIN_TOKEN);
+            request.addHeader(ProbeTestSupport.onboardingAdminHeader(), "ONBOARDING_ADMIN");
             return request;
         };
     }
@@ -232,7 +232,7 @@ class OnboardingProbeControllerTest {
             };
             request.setContent(content);
             request.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            request.addHeader(ProbeTestSupport.setupTokenHeader(), ProbeTestSupport.ADMIN_TOKEN);
+            request.addHeader(ProbeTestSupport.onboardingAdminHeader(), "ONBOARDING_ADMIN");
             return request;
         };
     }

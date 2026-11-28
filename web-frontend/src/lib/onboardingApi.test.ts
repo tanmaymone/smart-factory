@@ -15,23 +15,23 @@ describe("SF-M35 onboarding API", () => {
     expect(isStep2Pass({ endpointUrl: "opc.tcp://h:4840", securityMode: "None", reachable: true, error: "namespace", tags: [] })).toBe(false);
   });
 
-  it("sends the setup token on mutations only when it is non-blank", async () => {
-    vi.stubEnv("NEXT_PUBLIC_BOOTSTRAP_TOKEN", "secret");
+  it("uses same-origin credentials without bootstrap headers", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
     await createSite({ siteCode: "SITE", name: "Site", timezone: "UTC" });
-    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
-    expect(headers["X-Setup-Token"]).toBe("secret");
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.credentials).toBe("same-origin");
+    const headers = init.headers as Record<string, string>;
+    expect(headers["X-Setup-Token"]).toBeUndefined();
+    expect(headers["X-Actor-Id"]).toBeUndefined();
 
-    vi.stubEnv("NEXT_PUBLIC_BOOTSTRAP_TOKEN", "  ");
     fetchMock.mockResolvedValueOnce(new Response("[]", { status: 200 }));
     await listSites();
-    const getHeaders = fetchMock.mock.calls[1][1];
-    expect(getHeaders?.headers).toBeUndefined();
+    const listInit = fetchMock.mock.calls[1][1] as RequestInit;
+    expect(listInit.credentials).toBe("same-origin");
   });
 
-  it("posts the connection probe with setup headers", async () => {
-    vi.stubEnv("NEXT_PUBLIC_BOOTSTRAP_TOKEN", "");
+  it("posts the connection probe with session credentials only", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       endpointUrl: "opc.tcp://h:4840",
       securityMode: "None",
@@ -41,7 +41,10 @@ describe("SF-M35 onboarding API", () => {
     }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await postOnboardingProbe({ endpointUrl: "opc.tcp://h:4840", securityMode: "None", nodeIds: [] });
-    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.credentials).toBe("same-origin");
+    const headers = init.headers as Record<string, string>;
     expect(headers["X-Setup-Token"]).toBeUndefined();
+    expect(headers["X-Actor-Id"]).toBeUndefined();
   });
 });

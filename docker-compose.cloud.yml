@@ -49,7 +49,10 @@ services:
       MQTT_PASSWORD: ${MQTT_CENTRAL_PASSWORD:?MQTT_CENTRAL_PASSWORD must be set}
       MQTT_CA_CERT_PATH: /certs/ca.crt
       OPC_ENDPOINT_URL: ${OPC_ENDPOINT_URL:-opc.tcp://localhost:53530/OPCUA/SimulationServer}
-      APP_BOOTSTRAP_TOKEN: ${APP_BOOTSTRAP_TOKEN:-}
+      APP_ADMIN_USERNAME: ${APP_ADMIN_USERNAME:-}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
+      APP_ADMIN_DISPLAY_NAME: ${APP_ADMIN_DISPLAY_NAME:-}
+      APP_EDGE_BOOTSTRAP_TOKENS: ${APP_EDGE_BOOTSTRAP_TOKENS:-}
       APP_REGISTRY_SEED_ENABLED: ${APP_REGISTRY_SEED_ENABLED:-true}
       APP_ONBOARDING_PROBE_ENABLED: ${APP_ONBOARDING_PROBE_ENABLED:-false}
       EDGE_BASE_URL: ${EDGE_BASE_URL:-http://127.0.0.1:8081}
@@ -74,10 +77,8 @@ services:
       context: ./web-frontend
       args:
         BACKEND_ORIGIN: http://central-backend:8080
-        NEXT_PUBLIC_BOOTSTRAP_TOKEN: ${APP_BOOTSTRAP_TOKEN:-}
     environment:
       BACKEND_ORIGIN: http://central-backend:8080
-      NEXT_PUBLIC_BOOTSTRAP_TOKEN: ${APP_BOOTSTRAP_TOKEN:-}
     depends_on:
       central-backend:
         condition: service_healthy

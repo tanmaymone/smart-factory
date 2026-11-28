@@ -52,14 +52,8 @@ export function resolveTargetValue(draft: TargetDraft): unknown {
 
 export function canSubmitCommand(input: {
   draft: TargetDraft;
-  requestedBy: string;
   reason: string;
   confirmed: boolean;
 }): boolean {
-  return (
-    isTargetReady(input.draft) &&
-    input.requestedBy.trim().length > 0 &&
-    input.reason.trim().length > 0 &&
-    input.confirmed
-  );
+  return isTargetReady(input.draft) && input.reason.trim().length > 0 && input.confirmed;
 }

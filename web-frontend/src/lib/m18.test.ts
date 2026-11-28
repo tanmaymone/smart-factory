@@ -100,7 +100,6 @@ describe("SF-M18 command body and errors", () => {
         lineId: " LINE-01 ",
         tagId: "uuid",
         targetValue: 0,
-        requestedBy: " op@x.com ",
         reason: " open ",
       }),
     ).toEqual({
@@ -108,7 +107,6 @@ describe("SF-M18 command body and errors", () => {
       lineId: "LINE-01",
       tagId: "uuid",
       targetValue: 0,
-      requestedBy: "op@x.com",
       reason: "open",
     });
   });
@@ -148,7 +146,6 @@ describe("SF-M18 target readiness", () => {
     expect(
       canSubmitCommand({
         draft: { kind: "FLOAT", text: "0" },
-        requestedBy: "op",
         reason: "note",
         confirmed: true,
       }),
@@ -156,8 +153,7 @@ describe("SF-M18 target readiness", () => {
     expect(
       canSubmitCommand({
         draft: { kind: "FLOAT", text: "0" },
-        requestedBy: "",
-        reason: "note",
+        reason: "  ",
         confirmed: true,
       }),
     ).toBe(false);

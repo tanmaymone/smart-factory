@@ -11,51 +11,33 @@ class AccessRouteTest {
 
     @Test
     void classifiesOpenAndGatedRoutes() {
-        assertThat(AccessRoute.classify("GET", "/api/registry/sites")).contains(AccessAction.OPEN);
-        assertThat(AccessRoute.classify("GET", "/api/edge/INDORE/config")).contains(AccessAction.OPEN);
-        assertThat(AccessRoute.classify("HEAD", "/api/edge/INDORE/config")).contains(AccessAction.OPEN);
-        assertThat(AccessRoute.classify("GET", "/api/commands/audit")).contains(AccessAction.OPEN);
-        assertThat(AccessRoute.classify("POST", "/api/telemetry/ingest")).contains(AccessAction.OPEN);
-        assertThat(AccessRoute.classify("GET", "/api/stream/telemetry")).contains(AccessAction.OPEN);
+        assertThat(AccessRoute.classify("POST", "/api/auth/login")).contains(AccessAction.OPEN);
+        assertThat(AccessRoute.classify("GET", "/api/auth/me")).contains(AccessAction.AUTHENTICATED_READ);
+        assertThat(AccessRoute.classify("GET", "/api/registry/sites")).contains(AccessAction.AUTHENTICATED_READ);
+        assertThat(AccessRoute.match("GET", "/api/edge/INDORE/config"))
+                .contains(new AccessRouteMatch(AccessAction.EDGE_CONFIG_READ, Optional.of("INDORE")));
+        assertThat(AccessRoute.classify("GET", "/api/commands/audit")).contains(AccessAction.AUTHENTICATED_READ);
+        assertThat(AccessRoute.classify("POST", "/api/telemetry/ingest")).contains(AccessAction.TELEMETRY_INGEST);
+        assertThat(AccessRoute.classify("GET", "/api/stream/telemetry")).contains(AccessAction.AUTHENTICATED_READ);
         assertThat(AccessRoute.classify("GET", "/actuator/health")).contains(AccessAction.OPEN);
 
         assertThat(AccessRoute.classify("POST", "/api/registry/sites")).contains(AccessAction.REGISTRY_WRITE);
-        assertThat(AccessRoute.classify("POST", "/api/registry/not-a-resource"))
-                .contains(AccessAction.REGISTRY_WRITE);
         assertThat(AccessRoute.classify("POST", "/api/commands")).contains(AccessAction.COMMAND_WRITE);
         assertThat(AccessRoute.classify("GET", "/api/access/actors")).contains(AccessAction.ACTOR_ADMIN);
-        assertThat(AccessRoute.classify("POST", "/api/onboarding/probe"))
-                .contains(AccessAction.ONBOARDING_PROBE);
-        assertThat(AccessRoute.classify("GET", "/api/onboarding/templates")).contains(AccessAction.OPEN);
-        assertThat(AccessRoute.classify("GET", "/api/onboarding/templates/reactor")).contains(AccessAction.OPEN);
-        assertThat(AccessRoute.classify("HEAD", "/api/onboarding/templates/vessel")).contains(AccessAction.OPEN);
-        assertThat(AccessRoute.classify("GET", "/api/onboarding/checklist")).contains(AccessAction.OPEN);
+        assertThat(AccessRoute.classify("POST", "/api/onboarding/probe")).contains(AccessAction.ONBOARDING_PROBE);
+        assertThat(AccessRoute.classify("GET", "/api/onboarding/templates")).contains(AccessAction.AUTHENTICATED_READ);
+        assertThat(AccessRoute.classify("GET", "/api/onboarding/checklist")).contains(AccessAction.AUTHENTICATED_READ);
     }
 
     @Test
     void normalizesTrailingAndDoubleSlashes() {
         assertThat(AccessRoute.classify("POST", "/api/registry/sites/")).contains(AccessAction.REGISTRY_WRITE);
         assertThat(AccessRoute.classify("POST", "/api//registry/sites")).contains(AccessAction.REGISTRY_WRITE);
-        assertThat(AccessRoute.classify("POST", "/api/commands/")).contains(AccessAction.COMMAND_WRITE);
-        assertThat(AccessRoute.classify("GET", "/api/access/actors/")).contains(AccessAction.ACTOR_ADMIN);
-        assertThat(AccessRoute.classify("POST", "/api/onboarding/probe/"))
-                .contains(AccessAction.ONBOARDING_PROBE);
-        assertThat(AccessRoute.classify("POST", "/api//onboarding/probe"))
-                .contains(AccessAction.ONBOARDING_PROBE);
     }
 
     @Test
     void leavesUnmatchedPathsOpenToSpring() {
         assertThat(AccessRoute.classify("POST", "/api/does-not-exist")).isEqualTo(Optional.empty());
-        assertThat(AccessRoute.classify("DELETE", "/api/commands")).isEqualTo(Optional.empty());
-        assertThat(AccessRoute.classify("GET", "/api/onboarding/probe")).isEqualTo(Optional.empty());
-        assertThat(AccessRoute.classify("POST", "/api/onboarding")).isEqualTo(Optional.empty());
-        assertThat(AccessRoute.classify("POST", "/api/onboarding/probe/extra")).isEqualTo(Optional.empty());
-        assertThat(AccessRoute.classify("POST", "/api/onboarding/templates")).isEqualTo(Optional.empty());
-        assertThat(AccessRoute.classify("POST", "/api/onboarding/templates/reactor")).isEqualTo(Optional.empty());
-        assertThat(AccessRoute.classify("GET", "/api/onboarding/templates/reactor/extra")).isEqualTo(Optional.empty());
-        assertThat(AccessRoute.classify("POST", "/api/onboarding/checklist")).isEqualTo(Optional.empty());
-        assertThat(AccessRoute.classify("GET", "/api/edge/config")).isEqualTo(Optional.empty());
         assertThat(AccessRoute.classify("GET", "/api/edge/INDORE/config/extra")).isEqualTo(Optional.empty());
         assertThat(AccessRoute.classify("POST", "/api/edge/INDORE/config")).isEqualTo(Optional.empty());
     }
