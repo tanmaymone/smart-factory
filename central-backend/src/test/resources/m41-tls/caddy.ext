@@ -1,0 +1,1 @@
+subjectAltName = DNS:localhost, DNS:caddy, DNS:host.docker.internal, DNS:mosquitto, IP:127.0.0.1

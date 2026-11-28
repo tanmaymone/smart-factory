@@ -1,0 +1,7 @@
+# Cloud: automatic HTTPS (ACME). Set CADDY_SITE_ADDRESS to your public hostname.
+{$CADDY_SITE_ADDRESS:localhost} {
+	import /etc/caddy/routes.caddy
+	tls {
+		protocols tls1.2 tls1.3
+	}
+}

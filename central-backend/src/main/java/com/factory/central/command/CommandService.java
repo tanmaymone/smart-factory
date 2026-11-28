@@ -10,7 +10,7 @@ import com.factory.central.mqtt.MqttPublisher;
 import com.factory.central.registry.RegistryLivenessService;
 import com.factory.central.registry.TagMapping;
 import com.factory.central.stream.CommandUpdateEvent;
-import com.factory.central.stream.TelemetryStreamHub;
+import com.factory.central.stream.CommandStreamSink;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -33,7 +33,7 @@ public class CommandService {
     private final CommandAuditLogRepository auditLogRepository;
     private final CommandRejectionRecorder rejectionRecorder;
     private final MqttPublisher mqttPublisher;
-    private final TelemetryStreamHub streamHub;
+    private final CommandStreamSink commandStreamSink;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -46,7 +46,7 @@ public class CommandService {
             CommandAuditLogRepository auditLogRepository,
             CommandRejectionRecorder rejectionRecorder,
             MqttPublisher mqttPublisher,
-            TelemetryStreamHub streamHub,
+            CommandStreamSink commandStreamSink,
             ObjectMapper objectMapper,
             Clock clock) {
         this.tagResolver = tagResolver;
@@ -57,7 +57,7 @@ public class CommandService {
         this.auditLogRepository = auditLogRepository;
         this.rejectionRecorder = rejectionRecorder;
         this.mqttPublisher = mqttPublisher;
-        this.streamHub = streamHub;
+        this.commandStreamSink = commandStreamSink;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -213,7 +213,7 @@ public class CommandService {
 
     private void emit(
             CommandAuditLog audit, CommandStatus status, Object appliedValue, String errorMessage, Instant at) {
-        streamHub.publishCommand(new CommandUpdateEvent(
+        commandStreamSink.publishCommand(new CommandUpdateEvent(
                 audit.getCommandId().toString(),
                 audit.getSiteId(),
                 audit.getLineId(),

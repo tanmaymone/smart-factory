@@ -1,13 +1,15 @@
 package com.factory.edge.command;
 
+import com.factory.edge.mqtt.MqttClientOptionsFactory;
 import com.factory.edge.mqtt.MqttProperties;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
+import org.eclipse.paho.client.mqttv3.IMqttToken;
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
 import org.eclipse.paho.client.mqttv3.MqttClient;
-import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
@@ -17,12 +19,16 @@ import org.slf4j.LoggerFactory;
 /** Paho connect / subscribe / publish for the edge command client. */
 final class MqttCommandClient implements MqttCallbackExtended {
 
+    private static final int SUBACK_FAILURE_QOS = 128;
     private static final Logger log = LoggerFactory.getLogger(MqttCommandClient.class);
 
     private final MqttProperties properties;
+    private final MqttClientOptionsFactory optionsFactory;
     private final String commandFilter;
     private final MqttClient client;
     private final AtomicBoolean connected = new AtomicBoolean();
+    private final AtomicBoolean subscribed = new AtomicBoolean();
+    private final AtomicReference<String> lastError = new AtomicReference<>();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final Thread reconnectThread;
     private Consumer<Boolean> onConnected = reconnect -> {};
@@ -30,12 +36,12 @@ final class MqttCommandClient implements MqttCallbackExtended {
 
     MqttCommandClient(MqttProperties properties, String commandFilter) throws MqttException {
         this.properties = properties;
+        this.optionsFactory = new MqttClientOptionsFactory(properties);
         this.commandFilter = commandFilter;
-        this.client =
-                new MqttClient(
-                        properties.getBrokerUrl(),
-                        properties.getClientId() + "-commands",
-                        new MemoryPersistence());
+        this.client = new MqttClient(
+                properties.normalizedBrokerUrl(),
+                properties.getClientId() + "-commands",
+                new MemoryPersistence());
         this.client.setCallback(this);
         this.reconnectThread = new Thread(this::reconnectLoop, "edge-mqtt-cmd-reconnect");
         this.reconnectThread.setDaemon(true);
@@ -48,11 +54,15 @@ final class MqttCommandClient implements MqttCallbackExtended {
     }
 
     boolean isConnected() {
-        return connected.get() && client.isConnected();
+        return connected.get() && client != null && client.isConnected() && subscribed.get();
+    }
+
+    String lastError() {
+        return lastError.get();
     }
 
     boolean publish(String topic, String payload) {
-        if (!isConnected()) {
+        if (!client.isConnected()) {
             return false;
         }
         try {
@@ -62,6 +72,8 @@ final class MqttCommandClient implements MqttCallbackExtended {
             return true;
         } catch (MqttException e) {
             connected.set(false);
+            subscribed.set(false);
+            lastError.set(MqttClientOptionsFactory.describeConnectFailure(e));
             log.warn("EDGE CMD ACK publish failed: {}", e.getMessage());
             return false;
         }
@@ -91,6 +103,8 @@ final class MqttCommandClient implements MqttCallbackExtended {
     @Override
     public void connectionLost(Throwable cause) {
         connected.set(false);
+        subscribed.set(false);
+        lastError.set(MqttClientOptionsFactory.describeConnectFailure(cause));
         log.warn("EDGE CMD MQTT connection lost: {}", cause == null ? "unknown" : cause.getMessage());
     }
 
@@ -104,10 +118,23 @@ final class MqttCommandClient implements MqttCallbackExtended {
 
     private void subscribeCommands() {
         try {
-            client.subscribe(commandFilter, properties.getQos());
+            IMqttToken token = client.subscribeWithResponse(commandFilter, properties.getQos());
+            int[] granted = token.getGrantedQos();
+            if (granted == null || granted.length == 0 || granted[0] == SUBACK_FAILURE_QOS) {
+                subscribed.set(false);
+                String msg = "SUBACK 0x80 subscription rejected by broker ACL for " + commandFilter;
+                lastError.set(msg);
+                log.error(msg);
+                return;
+            }
+            subscribed.set(true);
+            lastError.set(null);
             log.info("EDGE CMD MQTT subscribed filter={}", commandFilter);
         } catch (MqttException e) {
-            log.warn("EDGE CMD MQTT subscribe failed: {}", e.getMessage());
+            subscribed.set(false);
+            String msg = MqttClientOptionsFactory.describeConnectFailure(e);
+            lastError.set(msg);
+            log.warn("EDGE CMD MQTT subscribe failed: {}", msg);
         }
     }
 
@@ -115,36 +142,29 @@ final class MqttCommandClient implements MqttCallbackExtended {
         long delay = Math.max(100L, properties.getReconnectInitialMs());
         long maxDelay = Math.max(delay, properties.getReconnectMaxMs());
         while (!closed.get()) {
-            if (client.isConnected()) {
+            if (client.isConnected() && subscribed.get()) {
                 connected.set(true);
                 sleepQuiet(delay);
                 continue;
             }
             connected.set(false);
+            if (!client.isConnected()) {
+                subscribed.set(false);
+            }
             try {
-                client.connect(connectOptions());
+                client.connect(optionsFactory.connectOptions());
                 connected.set(true);
-                log.info("EDGE CMD MQTT connected broker={}", properties.getBrokerUrl());
+                log.info("EDGE CMD MQTT connected broker={}", properties.normalizedBrokerUrl());
                 subscribeCommands();
                 onConnected.accept(false);
                 delay = Math.max(100L, properties.getReconnectInitialMs());
             } catch (MqttException e) {
-                log.warn("EDGE CMD MQTT broker unreachable; retry in {}ms: {}", delay, e.getMessage());
+                lastError.set(MqttClientOptionsFactory.describeConnectFailure(e));
+                log.warn("EDGE CMD MQTT broker unreachable; retry in {}ms: {}", delay, lastError.get());
                 sleepQuiet(delay);
                 delay = Math.min(maxDelay, delay * 2);
             }
         }
-    }
-
-    private MqttConnectOptions connectOptions() {
-        MqttConnectOptions options = new MqttConnectOptions();
-        options.setServerURIs(new String[] {properties.getBrokerUrl()});
-        options.setAutomaticReconnect(true);
-        options.setCleanSession(true);
-        options.setConnectionTimeout(10);
-        options.setMaxReconnectDelay(
-                (int) Math.min(Integer.MAX_VALUE, properties.getReconnectMaxMs()));
-        return options;
     }
 
     private void sleepQuiet(long ms) {

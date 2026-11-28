@@ -12,7 +12,6 @@ import static org.mockito.Mockito.when;
 
 import com.factory.central.cache.InMemoryLatestTagCache;
 import com.factory.central.cache.LatestTagState;
-import com.factory.central.ingestion.LatestTagStateResponse;
 import com.factory.central.registry.RegistryLivenessService;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
@@ -96,7 +95,7 @@ class TelemetryStreamHubTest {
     }
 
     @Test
-    void snapshotAlarmsAreNonNoneOnlyAndPayloadMatchesLatestTagStateResponse() {
+    void snapshotAlarmsAreNonNoneOnlyAndPayloadMatchesStreamTagStatePayload() {
         cache.put(state("INDORE", "LINE-01", "REACTOR_TEMP_C", 85.0, AlarmSeverity.CRITICAL));
         cache.put(state("INDORE", "LINE-01", "VALVE_101_POS", 10.0, AlarmSeverity.NONE));
 
@@ -108,8 +107,8 @@ class TelemetryStreamHubTest {
             assertThat(session.eventsNamed(TelemetryStreamHub.EVENT_TAG_UPDATE)).hasSize(2);
             List<RecordingStreamSession.SentEvent> alarms = session.eventsNamed(TelemetryStreamHub.EVENT_ALARM);
             assertThat(alarms).hasSize(1);
-            assertThat(alarms.getFirst().data()).isInstanceOf(LatestTagStateResponse.class);
-            LatestTagStateResponse alarm = (LatestTagStateResponse) alarms.getFirst().data();
+            assertThat(alarms.getFirst().data()).isInstanceOf(StreamTagStatePayload.class);
+            StreamTagStatePayload alarm = (StreamTagStatePayload) alarms.getFirst().data();
             assertThat(alarm.severity()).isEqualTo(AlarmSeverity.CRITICAL);
             assertThat(alarm.tagCode()).isEqualTo("REACTOR_TEMP_C");
         });
@@ -172,7 +171,7 @@ class TelemetryStreamHubTest {
         await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
             List<RecordingStreamSession.SentEvent> tags = session.eventsNamed(TelemetryStreamHub.EVENT_TAG_UPDATE);
             assertThat(tags).isNotEmpty();
-            LatestTagStateResponse last = (LatestTagStateResponse) tags.getLast().data();
+            StreamTagStatePayload last = (StreamTagStatePayload) tags.getLast().data();
             assertThat(last.value()).isEqualTo(3.0);
         });
     }

@@ -31,8 +31,10 @@ public class MqttTelemetryLink implements TelemetryLink, MqttCallbackExtended {
     private static final Logger log = LoggerFactory.getLogger(MqttTelemetryLink.class);
 
     private final MqttProperties properties;
+    private final MqttClientOptionsFactory optionsFactory;
     private final TelemetryEnvelopeMapper mapper;
     private final AtomicBoolean connected = new AtomicBoolean();
+    private final AtomicReference<String> lastError = new AtomicReference<>();
     private final AtomicReference<Instant> lastPublishAt = new AtomicReference<>();
     private final AtomicReference<Runnable> recovery = new AtomicReference<>(() -> {});
     private final AtomicReference<IntSupplier> bufferedCount = new AtomicReference<>(() -> 0);
@@ -43,9 +45,10 @@ public class MqttTelemetryLink implements TelemetryLink, MqttCallbackExtended {
 
     public MqttTelemetryLink(MqttProperties properties, ObjectMapper objectMapper) throws MqttException {
         this.properties = properties;
+        this.optionsFactory = new MqttClientOptionsFactory(properties);
         this.mapper = new TelemetryEnvelopeMapper(objectMapper);
-        this.client =
-                new MqttClient(properties.getBrokerUrl(), properties.getClientId(), new MemoryPersistence());
+        this.client = new MqttClient(
+                properties.normalizedBrokerUrl(), properties.getClientId(), new MemoryPersistence());
         this.client.setCallback(this);
         this.reconnectThread = new Thread(this::reconnectLoop, "edge-mqtt-reconnect");
         this.reconnectThread.setDaemon(true);
@@ -66,7 +69,12 @@ public class MqttTelemetryLink implements TelemetryLink, MqttCallbackExtended {
         return new EdgeLinkHealth(
                 connected.get() ? EdgeLinkHealth.CONNECTED : EdgeLinkHealth.DISCONNECTED,
                 bufferedCount.get().getAsInt(),
-                lastPublishAt.get());
+                lastPublishAt.get(),
+                lastError.get());
+    }
+
+    String lastError() {
+        return lastError.get();
     }
 
     @Override
@@ -90,6 +98,7 @@ public class MqttTelemetryLink implements TelemetryLink, MqttCallbackExtended {
             log.debug("EDGE MQTT published topic={} bytes={}", topic, payload.length());
         } catch (MqttException e) {
             connected.set(false);
+            lastError.set(MqttClientOptionsFactory.describeConnectFailure(e));
             throw new LinkUnavailableException("MQTT publish failed: " + e.getMessage(), e);
         }
     }
@@ -97,6 +106,7 @@ public class MqttTelemetryLink implements TelemetryLink, MqttCallbackExtended {
     @Override
     public void connectComplete(boolean reconnect, String serverURI) {
         connected.set(true);
+        lastError.set(null);
         log.info("EDGE MQTT connectComplete reconnect={} uri={}", reconnect, serverURI);
         recovery.get().run();
     }
@@ -104,6 +114,7 @@ public class MqttTelemetryLink implements TelemetryLink, MqttCallbackExtended {
     @Override
     public void connectionLost(Throwable cause) {
         connected.set(false);
+        lastError.set(MqttClientOptionsFactory.describeConnectFailure(cause));
         log.warn("EDGE MQTT connection lost: {}", cause == null ? "unknown" : cause.getMessage());
     }
 
@@ -128,34 +139,26 @@ public class MqttTelemetryLink implements TelemetryLink, MqttCallbackExtended {
             }
             connected.set(false);
             try {
-                client.connect(connectOptions());
+                client.connect(optionsFactory.connectOptions());
                 connected.set(true);
+                lastError.set(null);
                 log.info(
                         "EDGE MQTT connected broker={} clientId={}",
-                        properties.getBrokerUrl(),
+                        properties.normalizedBrokerUrl(),
                         properties.getClientId());
                 delay = Math.max(100L, properties.getReconnectInitialMs());
                 recovery.get().run();
             } catch (MqttException e) {
+                lastError.set(MqttClientOptionsFactory.describeConnectFailure(e));
                 log.warn(
                         "EDGE MQTT broker unreachable at {}; retry in {}ms: {}",
-                        properties.getBrokerUrl(),
+                        properties.normalizedBrokerUrl(),
                         delay,
-                        e.getMessage());
+                        lastError.get());
                 sleepQuiet(delay);
                 delay = Math.min(maxDelay, delay * 2);
             }
         }
-    }
-
-    private MqttConnectOptions connectOptions() {
-        MqttConnectOptions options = new MqttConnectOptions();
-        options.setServerURIs(new String[] {properties.getBrokerUrl()});
-        options.setAutomaticReconnect(true);
-        options.setCleanSession(true);
-        options.setConnectionTimeout(10);
-        options.setMaxReconnectDelay((int) Math.min(Integer.MAX_VALUE, properties.getReconnectMaxMs()));
-        return options;
     }
 
     private void sleepQuiet(long ms) {

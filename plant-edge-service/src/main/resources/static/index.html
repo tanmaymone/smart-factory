@@ -178,6 +178,7 @@
       <div class="row"><span class="label">Command subscriber</span><span id="mqttCommand">—</span></div>
       <div class="row"><span class="label">Buffered</span><span id="mqttBuffered" class="mono">—</span></div>
       <div class="row"><span class="label">Last flush</span><span id="mqttFlush" class="mono">—</span></div>
+      <div class="row"><span class="label">MQTT error</span><span id="mqttLastError" class="mono muted">—</span></div>
     </section>
 
     <section class="card span-2" id="configCard">
@@ -367,6 +368,7 @@
       document.getElementById("mqttBuffered").textContent =
         m.bufferedCount === null || m.bufferedCount === undefined ? DASH : String(m.bufferedCount);
       document.getElementById("mqttFlush").textContent = fmtInstant(m.lastPublishAt);
+      document.getElementById("mqttLastError").textContent = m.lastError ? dash(m.lastError) : "—";
       renderConfig(data.config);
       renderTags(data.tags);
       renderCommands(data.commands);

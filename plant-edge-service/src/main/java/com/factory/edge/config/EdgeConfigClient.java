@@ -20,7 +20,9 @@ public class EdgeConfigClient {
     @Autowired
     public EdgeConfigClient(EdgeConfigProperties properties) {
         this.properties = properties;
-        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory();
+        JdkClientHttpRequestFactory factory =
+                new JdkClientHttpRequestFactory(HttpTlsSupport.buildHttpClient(
+                        properties.getCentralCaCertPath(), properties.getConfigTimeoutMs()));
         factory.setReadTimeout(Duration.ofMillis(Math.max(100L, properties.getConfigTimeoutMs())));
         this.restClient = RestClient.builder().requestFactory(factory).build();
     }

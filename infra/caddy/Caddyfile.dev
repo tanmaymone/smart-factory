@@ -1,0 +1,12 @@
+# Local dev: private CA cert from scripts/Generate-DevTls.ps1
+
+:80 {
+	redir https://{host}{uri} permanent
+}
+
+:443 {
+	tls /etc/caddy/certs/caddy.crt /etc/caddy/certs/caddy.key {
+		protocols tls1.2 tls1.3
+	}
+	import /etc/caddy/routes.caddy
+}

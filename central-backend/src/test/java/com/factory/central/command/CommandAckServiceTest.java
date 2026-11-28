@@ -8,7 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.factory.central.stream.CommandUpdateEvent;
-import com.factory.central.stream.TelemetryStreamHub;
+import com.factory.central.stream.CommandStreamSink;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -33,7 +33,7 @@ class CommandAckServiceTest {
     private CommandAuditWriter auditWriter;
 
     @Mock
-    private TelemetryStreamHub streamHub;
+    private CommandStreamSink commandStreamSink;
 
     private CommandAckService service;
     private final Instant now = Instant.parse("2026-11-19T12:05:00Z");
@@ -42,7 +42,7 @@ class CommandAckServiceTest {
     @BeforeEach
     void setUp() {
         service = new CommandAckService(
-                auditLogRepository, auditWriter, streamHub, Clock.fixed(now, ZoneOffset.UTC));
+                auditLogRepository, auditWriter, commandStreamSink, Clock.fixed(now, ZoneOffset.UTC));
     }
 
     @Test
@@ -63,7 +63,7 @@ class CommandAckServiceTest {
         service.applyAck("INDORE", "LINE-01", commandId, "INDORE", "LINE-01", "ACKED", 50.0, null, now);
 
         ArgumentCaptor<CommandUpdateEvent> captor = ArgumentCaptor.forClass(CommandUpdateEvent.class);
-        verify(streamHub).publishCommand(captor.capture());
+        verify(commandStreamSink).publishCommand(captor.capture());
         assertThat(captor.getAllValues()).hasSize(1);
         assertThat(captor.getValue().status()).isEqualTo(CommandUpdateEvent.Status.ACKED);
     }
@@ -73,7 +73,7 @@ class CommandAckServiceTest {
         when(auditLogRepository.findByCommandId(commandId)).thenReturn(Optional.empty());
         service.applyAck("INDORE", "LINE-01", commandId, "INDORE", "LINE-01", "ACKED", 50.0, null, now);
         verify(auditWriter, never()).transitionFromDispatched(any(), any(), any(), any(), any());
-        verify(streamHub, never()).publishCommand(any());
+        verify(commandStreamSink, never()).publishCommand(any());
     }
 
     private CommandAuditLog dispatched() {

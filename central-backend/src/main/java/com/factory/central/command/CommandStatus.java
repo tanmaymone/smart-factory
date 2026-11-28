@@ -1,9 +1,8 @@
 package com.factory.central.command;
 
-import com.factory.central.stream.CommandUpdateEvent;
 import java.util.Set;
 
-/** Persisted audit statuses — same strings as {@link CommandUpdateEvent.Status}. */
+/** Persisted audit statuses — same strings as stream {@code COMMAND_UPDATE} payloads. */
 public enum CommandStatus {
     VALIDATED_DISPATCHED,
     REJECTED_VALIDATION,
@@ -12,7 +11,13 @@ public enum CommandStatus {
     FAILED_EDGE,
     TIMEOUT;
 
-    public static final Set<String> NAMES = CommandUpdateEvent.Status.ALL;
+    public static final Set<String> NAMES = Set.of(
+            VALIDATED_DISPATCHED.name(),
+            REJECTED_VALIDATION.name(),
+            REJECTED_INTERLOCK.name(),
+            ACKED.name(),
+            FAILED_EDGE.name(),
+            TIMEOUT.name());
 
     public String asString() {
         return name();

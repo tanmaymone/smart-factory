@@ -1,9 +1,14 @@
 package com.factory.central.mqtt;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.eclipse.paho.client.mqttv3.IMqttClient;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
+import org.eclipse.paho.client.mqttv3.IMqttToken;
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
@@ -19,12 +24,20 @@ import org.springframework.stereotype.Component;
 @Component
 public class MqttInboundRouter implements MqttCallbackExtended {
 
+    private static final int SUBACK_FAILURE_QOS = 128;
+
     private static final Logger log = LoggerFactory.getLogger(MqttInboundRouter.class);
 
     private final IMqttClient mqttClient;
     private final DefaultMqttPahoClientFactory mqttClientFactory;
     private final MqttProperties mqttProperties;
     private final List<MqttInboundHandler> handlers;
+    private final ScheduledExecutorService connectRetry =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "central-mqtt-connect-retry");
+                t.setDaemon(true);
+                return t;
+            });
 
     public MqttInboundRouter(
             IMqttClient mqttClient,
@@ -43,15 +56,38 @@ public class MqttInboundRouter implements MqttCallbackExtended {
         if (mqttClient.isConnected()) {
             subscribeAll();
         } else {
-            try {
-                mqttClient.connect(mqttClientFactory.getConnectionOptions());
-                log.info("MQTT client connected for inbound routing");
-            } catch (MqttException ex) {
-                log.warn(
-                        "MQTT broker unreachable; inbound router will wait for reconnect: {}",
-                        ex.getMessage());
-            }
+            tryConnectOnce();
+            scheduleConnectRetry();
         }
+    }
+
+    @PreDestroy
+    void stop() {
+        connectRetry.shutdownNow();
+    }
+
+    private void tryConnectOnce() {
+        try {
+            mqttClient.connect(mqttClientFactory.getConnectionOptions());
+            log.info("MQTT client connected for inbound routing");
+        } catch (MqttException ex) {
+            log.warn(
+                    "MQTT broker unreachable; inbound router will wait for reconnect: {}",
+                    MqttTlsSupport.describeMqttException(ex));
+        }
+    }
+
+    private void scheduleConnectRetry() {
+        connectRetry.scheduleWithFixedDelay(
+                () -> {
+                    if (mqttClient.isConnected()) {
+                        return;
+                    }
+                    tryConnectOnce();
+                },
+                5,
+                5,
+                TimeUnit.SECONDS);
     }
 
     @Override
@@ -92,7 +128,16 @@ public class MqttInboundRouter implements MqttCallbackExtended {
         for (MqttInboundHandler handler : handlers) {
             String filter = handler.topicFilter();
             try {
-                mqttClient.subscribe(filter, mqttProperties.getQos());
+                IMqttToken token = mqttClient.subscribeWithResponse(filter, mqttProperties.getQos());
+                int[] granted = token.getGrantedQos();
+                if (granted == null
+                        || granted.length == 0
+                        || granted[0] == SUBACK_FAILURE_QOS) {
+                    log.error(
+                            "SUBACK 0x80 subscription rejected by broker ACL for filter={}",
+                            filter);
+                    continue;
+                }
                 log.info("Subscribed to MQTT topic {} qos={}", filter, mqttProperties.getQos());
             } catch (MqttException ex) {
                 log.warn("Failed to subscribe to {}: {}", filter, ex.getMessage());

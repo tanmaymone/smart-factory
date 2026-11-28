@@ -1,7 +1,7 @@
 package com.factory.central.command;
 
 import com.factory.central.stream.CommandUpdateEvent;
-import com.factory.central.stream.TelemetryStreamHub;
+import com.factory.central.stream.CommandStreamSink;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
@@ -17,17 +17,17 @@ public class CommandAckService {
 
     private final CommandAuditLogRepository auditLogRepository;
     private final CommandAuditWriter auditWriter;
-    private final TelemetryStreamHub streamHub;
+    private final CommandStreamSink commandStreamSink;
     private final Clock clock;
 
     public CommandAckService(
             CommandAuditLogRepository auditLogRepository,
             CommandAuditWriter auditWriter,
-            TelemetryStreamHub streamHub,
+            CommandStreamSink commandStreamSink,
             Clock clock) {
         this.auditLogRepository = auditLogRepository;
         this.auditWriter = auditWriter;
-        this.streamHub = streamHub;
+        this.commandStreamSink = commandStreamSink;
         this.clock = clock;
     }
 
@@ -86,7 +86,7 @@ public class CommandAckService {
             return;
         }
         CommandAuditLog row = auditWriter.require(commandId);
-        streamHub.publishCommand(new CommandUpdateEvent(
+        commandStreamSink.publishCommand(new CommandUpdateEvent(
                 row.getCommandId().toString(),
                 row.getSiteId(),
                 row.getLineId(),

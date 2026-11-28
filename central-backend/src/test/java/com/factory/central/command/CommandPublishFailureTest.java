@@ -20,7 +20,7 @@ import com.factory.central.registry.RegistryLivenessService;
 import com.factory.central.registry.TagDataType;
 import com.factory.central.registry.TagMapping;
 import com.factory.central.stream.CommandUpdateEvent;
-import com.factory.central.stream.TelemetryStreamHub;
+import com.factory.central.stream.CommandStreamSink;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -66,7 +66,7 @@ class CommandPublishFailureTest {
     private MqttPublisher mqttPublisher;
 
     @Mock
-    private TelemetryStreamHub streamHub;
+    private CommandStreamSink commandStreamSink;
 
     private CommandService service;
     private final Instant now = Instant.parse("2026-11-19T12:05:00Z");
@@ -85,7 +85,7 @@ class CommandPublishFailureTest {
                 auditLogRepository,
                 rejectionRecorder,
                 mqttPublisher,
-                streamHub,
+                commandStreamSink,
                 new ObjectMapper(),
                 Clock.fixed(now, ZoneOffset.UTC));
         tag = new TagMapping(
@@ -145,7 +145,7 @@ class CommandPublishFailureTest {
                 });
 
         ArgumentCaptor<CommandUpdateEvent> captor = ArgumentCaptor.forClass(CommandUpdateEvent.class);
-        verify(streamHub).publishCommand(captor.capture());
+        verify(commandStreamSink).publishCommand(captor.capture());
         assertThat(captor.getValue().status()).isEqualTo(CommandUpdateEvent.Status.FAILED_EDGE);
         assertThat(captor.getValue().errorMessage()).startsWith("MQTT publish failed:");
     }
@@ -172,7 +172,7 @@ class CommandPublishFailureTest {
 
         CommandAcceptedResponse response = service.submit(operator(), request());
         assertThat(response.status()).isEqualTo(CommandStatus.ACKED.asString());
-        verify(streamHub, never()).publishCommand(any());
+        verify(commandStreamSink, never()).publishCommand(any());
     }
 
     private static ActorContext operator() {

@@ -1,16 +1,17 @@
-# Cloud control plane: TimescaleDB + Mosquitto + central-backend + web-frontend.
+# Cloud control plane: TimescaleDB + Mosquitto (TLS) + central-backend + web-frontend + Caddy.
 # The plant edge is a separate compose file and runs on the plant PC.
 #
 #   docker compose -f docker-compose.cloud.yml up -d --build
 #
-# Anonymous MQTT on 1883 is the dev broker. Keep that port on a VPN.
-# Do not publish it on the public internet. TLS and broker username are not wired yet.
+# Run scripts/Generate-DevTls.ps1 (or generate-dev-tls.sh) before first boot so certs/passwd exist.
+# Publish MQTTS 8883 only on a VPN; do not expose it on the public internet without ACL review.
 
 include:
   - docker-compose.yml
 
 services:
   timescaledb:
+    ports: !reset []
     command:
       - postgres
       - -c
@@ -28,6 +29,7 @@ services:
           memory: 1024M
 
   mosquitto:
+    ports: !reset ["${MQTT_BIND_ADDRESS:-0.0.0.0}:${MQTT_TLS_PORT:-8883}:8883"]
     deploy:
       resources:
         limits:
@@ -42,15 +44,18 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-smartfactory}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartfactory}
       POSTGRES_DB: ${POSTGRES_DB:-smart_factory}
-      MQTT_BROKER_URL: tcp://mosquitto:1883
+      MQTT_BROKER_URL: ssl://mosquitto:8883
+      MQTT_USERNAME: ${MQTT_CENTRAL_USERNAME:-central-backend}
+      MQTT_PASSWORD: ${MQTT_CENTRAL_PASSWORD:?MQTT_CENTRAL_PASSWORD must be set}
+      MQTT_CA_CERT_PATH: /certs/ca.crt
       OPC_ENDPOINT_URL: ${OPC_ENDPOINT_URL:-opc.tcp://localhost:53530/OPCUA/SimulationServer}
       APP_BOOTSTRAP_TOKEN: ${APP_BOOTSTRAP_TOKEN:-}
       APP_REGISTRY_SEED_ENABLED: ${APP_REGISTRY_SEED_ENABLED:-true}
       APP_ONBOARDING_PROBE_ENABLED: ${APP_ONBOARDING_PROBE_ENABLED:-false}
       EDGE_BASE_URL: ${EDGE_BASE_URL:-http://127.0.0.1:8081}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m -XX:MaxMetaspaceSize=128m"
-    ports:
-      - "8080:8080"
+    volumes:
+      - ./infra/certs/ca.crt:/certs/ca.crt:ro
     depends_on:
       timescaledb:
         condition: service_healthy
@@ -73,8 +78,6 @@ services:
     environment:
       BACKEND_ORIGIN: http://central-backend:8080
       NEXT_PUBLIC_BOOTSTRAP_TOKEN: ${APP_BOOTSTRAP_TOKEN:-}
-    ports:
-      - "3000:3000"
     depends_on:
       central-backend:
         condition: service_healthy
@@ -85,3 +88,30 @@ services:
       resources:
         limits:
           memory: 512M
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./infra/caddy/routes.caddy:/etc/caddy/routes.caddy:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      central-backend:
+        condition: service_healthy
+      web-frontend:
+        condition: service_started
+    networks:
+      - smart-factory
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+volumes:
+  caddy_data:
+  caddy_config:

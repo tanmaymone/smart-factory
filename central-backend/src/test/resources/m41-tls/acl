@@ -1,0 +1,17 @@
+user central-backend
+topic read site/+/line/+/telemetry
+topic read site/+/line/+/commands/acks
+topic write site/+/line/+/commands
+
+user healthcheck
+topic read $SYS/broker/uptime
+
+user edge-INDORE
+topic write site/INDORE/line/+/telemetry
+topic write site/INDORE/line/+/commands/acks
+topic read site/INDORE/line/+/commands
+
+user edge-PUNE
+topic write site/PUNE/line/+/telemetry
+topic write site/PUNE/line/+/commands/acks
+topic read site/PUNE/line/+/commands

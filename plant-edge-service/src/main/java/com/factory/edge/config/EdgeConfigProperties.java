@@ -15,6 +15,7 @@ public class EdgeConfigProperties {
     private long configPollMs = 15_000L;
     private long configTimeoutMs = 5_000L;
     private String snapshotPath = "./data/edge-config.json";
+    private String centralCaCertPath = "";
 
     @PostConstruct
     void validate() {
@@ -40,6 +41,10 @@ public class EdgeConfigProperties {
         }
         if (snapshotPath == null || snapshotPath.isBlank()) {
             throw new IllegalStateException("app.edge.snapshot-path must be set when config-sync-enabled=true");
+        }
+        String ca = centralCaCertPath == null ? "" : centralCaCertPath.trim();
+        if (!ca.isEmpty() && !java.nio.file.Files.isRegularFile(java.nio.file.Path.of(ca))) {
+            throw new IllegalStateException("app.edge.central-ca-cert-path is not readable: " + ca);
         }
     }
 
@@ -94,5 +99,13 @@ public class EdgeConfigProperties {
 
     public void setSnapshotPath(String snapshotPath) {
         this.snapshotPath = snapshotPath;
+    }
+
+    public String getCentralCaCertPath() {
+        return centralCaCertPath;
+    }
+
+    public void setCentralCaCertPath(String centralCaCertPath) {
+        this.centralCaCertPath = centralCaCertPath == null ? "" : centralCaCertPath;
     }
 }

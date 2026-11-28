@@ -1,10 +1,10 @@
-package com.factory.central.command;
+package com.factory.central.quality;
 
 import java.util.Locale;
 
 /**
- * Trust gate for interlocks and other live-tag decisions. Null, blank, and non-{@code GOOD} stay
- * non-good. Matches the edge string contract without a Milo dependency.
+ * Trust gate for interlocks and alarm evaluation. Null, blank, and non-{@code GOOD} stay non-good.
+ * Matches the edge string contract without a Milo dependency.
  */
 public final class QualityGate {
 

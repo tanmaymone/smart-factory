@@ -63,12 +63,12 @@ Three images, two machines. Cloud never dials OPC UA / S7 / Modbus. The only cro
 
 | File | Where | What |
 | --- | --- | --- |
-| `docker-compose.yml` | dev laptop | TimescaleDB + Mosquitto. Java + Next stay on the host (`mvnw`, `npm run dev`). |
-| `docker-compose.cloud.yml` | cloud VM | Includes infra. Adds `central-backend` (`:8080`, `MQTT_BROKER_URL=tcp://mosquitto:1883`, heap `-Xmx512m`) and `web-frontend` (`:3000`). `BACKEND_ORIGIN=http://central-backend:8080` is baked into Next rewrites at image build and set again at runtime for the SSE proxy. Postgres `shared_buffers=256MB`, `shm_size` 512mb, container cap 1024M. |
-| `docker-compose.edge.yml` | plant PC | `plant-edge-service` only. `SERVER_ADDRESS=0.0.0.0` inside the container; host publishes `127.0.0.1:8081` so diagnostics stay local. Volume `/data` holds both the SQLite WAL (`EDGE_BUFFER_PATH`) and the config snapshot (`EDGE_CONFIG_SNAPSHOT_PATH`). `MQTT_BROKER_URL` default `tcp://host.docker.internal:1883`; `CENTRAL_BASE_URL` default `http://host.docker.internal:8080` (config sync is HTTP, not MQTT). `EDGE_SITE_ID` default `INDORE`, case-sensitive. OPC default `opc.tcp://host.docker.internal:53530/OPCUA/SimulationServer` (`OPC_UA_ENDPOINT`, else `OPC_ENDPOINT_URL`). Heap `-Xmx384m`. |
-| `docker-compose.dev.yml` | dev laptop | Cloud unit + edge on one compose network (`tcp://mosquitto:1883`, `CENTRAL_BASE_URL=http://central-backend:8080`). Prosys stays on the Windows host. |
+| `docker-compose.yml` | dev laptop | TimescaleDB + Mosquitto (MQTTS `:8883` only, ACL + password auth). Java + Next stay on the host (`mvnw`, `npm run dev`) with `tcp://localhost:1883` only when using a plaintext test broker in ITs. Run `scripts/Generate-DevTls.ps1` (or `generate-dev-tls.sh`) before compose up. |
+| `docker-compose.cloud.yml` | cloud VM | Infra + `central-backend` + `web-frontend` (internal `:8080`/`:3000`) + **Caddy** (`:80`/`:443`, SSE `flush_interval -1`). Central MQTT `ssl://mosquitto:8883` + `MQTT_USERNAME`/`MQTT_PASSWORD` + `MQTT_CA_CERT_PATH=/certs/ca.crt`. `MQTT_CENTRAL_PASSWORD` required (`:?`). Postgres internal-only; Mosquitto `8883` on VPN bind. |
+| `docker-compose.edge.yml` | plant PC | `plant-edge-service` only. `MQTT_BROKER_URL` default `ssl://host.docker.internal:8883`; `MQTT_USERNAME`/`MQTT_PASSWORD` required; optional `MQTT_CA_CERT_PATH` + `CENTRAL_CA_CERT_PATH` (empty = JVM public CA). `CENTRAL_BASE_URL` default `https://host.docker.internal`. Config sync stays HTTP/HTTPS (not MQTT). Diagnostics `127.0.0.1:8081` only — never via Caddy. |
+| `docker-compose.dev.yml` | dev laptop | Cloud unit + edge; Caddy `Caddyfile.dev` + dev CA certs; edge `CENTRAL_BASE_URL=https://caddy`, `MQTT_*` dev defaults seeded in `.env` by Generate-DevTls. |
 
-Anonymous Mosquitto `:1883` is the dev broker. A real plant link stays on a VPN. Do not publish 1883 on the public internet. Paho clients have no username or TLS socket yet.
+M4.1 (done): Mosquitto `allow_anonymous false`, per-site ACL (`infra/mosquitto/acl.example`), TLS 1.2+ on `8883`. Plaintext `1883` disabled in shipped broker config. Paho v3 clients use `ssl://` (or `tls://` normalized to `ssl://`), username/password, optional PEM CA truststore. Host `mvnw` / anonymous `mosquitto-test.conf` ITs unchanged on `tcp://…:1883` with empty MQTT credentials.
 
 ## 3. Industrial Protocol Integration Strategy
 
@@ -95,8 +95,13 @@ smart-factory-platform/
 ├── docker-compose.edge.yml         # Plant unit: plant-edge-service only (one container per plant)
 ├── docker-compose.dev.yml          # Laptop: cloud unit + edge; Prosys stays on the host
 ├── infra/
-│   └── mosquitto/
-│       └── mosquitto.conf          # Broker config (port 1883; websockets 9001 later)
+│   ├── mosquitto/
+│   │   ├── mosquitto.conf          # MQTTS :8883, ACL, password auth (no anonymous 1883)
+│   │   └── acl.example             # central-backend + edge-{siteId} + healthcheck users
+│   └── caddy/
+│       ├── routes.caddy            # Shared /api/* + SSE no-buffer reverse_proxy rules
+│       ├── Caddyfile               # Cloud ACME site
+│       └── Caddyfile.dev           # Local private-CA :443
 ├── central-backend/                # App 1: Java 21 + Spring Boot (Control Plane)
 │   ├── pom.xml / build.gradle
 │   └── src/main/java/com/factory/central/
@@ -144,7 +149,7 @@ smart-factory-platform/
 
 * **Messaging & Streaming:**
 
-  * **Eclipse Paho MQTT v3 (`org.eclipse.paho.client.mqttv3` 1.2.5) + Spring Integration MQTT:** Connects at startup (QoS 1). Sole inbound callback: `MqttInboundRouter` → handlers (`site/+/line/+/telemetry`, `site/+/line/+/commands/acks`); `MqttPublisher` for validated writes. Not the MQTT v5 client artifact.
+  * **Eclipse Paho MQTT v3 (`org.eclipse.paho.client.mqttv3` 1.2.5) + Spring Integration MQTT:** Connects at startup (QoS 1). Sole inbound callback: `MqttInboundRouter` (`subscribeWithResponse`, SUBACK `0x80` logged). `app.mqtt.username`/`password`, `app.mqtt.tls.ca-cert-path`, hostname verify on `ssl://`. Broker-down at startup does not fail Spring; MQTT publish failure still `FAILED_EDGE`. Not MQTT v5.
 
   * **Spring WebMVC `SseEmitter` (or WebSockets):** Pushes real-time tag changes, alarm transitions, and command ACK updates to Next.js clients.
 
@@ -494,7 +499,7 @@ Follow this exact sequence when scaffolding and implementing features:
 
 ### Milestone 4: Production Hardening, Reliability & Scale
 
-* **Step M4.1 — Broker Auth, ACLs & TLS Transport:** Mosquitto `allow_anonymous false`; per-site/per-client ACLs so an edge node publishes only its own telemetry/ACKs and subscribes only to its site’s commands (M3.4 already uses site-scoped `site/{siteId}/line/+/commands`). Credentials + TLS (`ssl://` / `tls://`) on the broker, Paho clients, and the reverse proxy (Caddy) in front of web/API. Config sync stays on HTTP (no MQTT config topic to ACL); putting Caddy TLS in front of central switches `CENTRAL_BASE_URL` on the edge to `https://`. Check: unauthorized client or cross-site topic rejected; authenticated edge publishes telemetry and receives only its own site’s commands.
+* **Step M4.1 — Broker Auth, ACLs & TLS Transport (done):** Mosquitto TLS `:8883`, `allow_anonymous false`, `passwd` + per-site ACL (`edge-{siteId}` username shared by both Paho client IDs). Central + edge Paho `ssl://` + optional PEM CA; `MqttCommandClient.isConnected()` requires successful ACL subscribe (not TCP alone). Caddy terminates HTTPS (`routes.caddy`, SSE unbuffered). `EdgeConfigClient` optional `CENTRAL_CA_CERT_PATH`; `GET /api/edge/{siteId}/config` still `AccessAction.OPEN`. Dev: `scripts/Generate-DevTls.ps1`. Tests `GW-M41` / `EDGE-M41` / `SF-M41`.
 
 * **Step M4.2 — Full Authentication & RBAC Enforcement:** Spring Security on the backend; replace `BootstrapActorResolver` only — keep `AccessInterceptor`/`AccessPolicy`. Next.js login/session or token auth. Enforce `VIEWER`, `OPERATOR`, `SUPERVISOR`, `ONBOARDING_ADMIN`. Remove `NEXT_PUBLIC_BOOTSTRAP_TOKEN` / `X-Setup-Token` client path. Secure `GET /api/edge/{siteId}/config` (currently `AccessAction.OPEN` from M3.4) with a headless per-site credential (per-site API token or mTLS) wired into `plant-edge-service`, enforcing that a plant can only fetch its own `siteId`. Check: unauthenticated or `VIEWER` requests to write/registry endpoints blocked; unauthenticated or cross-site requests to `GET /api/edge/{siteId}/config` rejected (401/403); valid commands record the real operator identity in the audit log. M4.2 must close the M3.3 onboarding-probe scanner. With `NEXT_PUBLIC_BOOTSTRAP_TOKEN` baked into the UI, anyone who can load the app holds `ONBOARDING_ADMIN` and can make the edge TCP-connect to an arbitrary host:port and read arbitrary nodes; `reachable` and `error` are an open/closed-port oracle. Removing that client bootstrap token is the close. `app.onboarding.probe-enabled` (default off outside dev) is only the interim gate and stays off in production until this auth lands.
 

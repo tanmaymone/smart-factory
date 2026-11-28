@@ -74,6 +74,10 @@ public class MqttCommandLink {
         return client.isConnected();
     }
 
+    public String lastError() {
+        return client.lastError();
+    }
+
     /** One site per edge process once config sync owns the tag list (M4.1 ACLs build on this). */
     static String commandFilter(EdgeConfigProperties edgeConfig) {
         if (edgeConfig != null && edgeConfig.isConfigSyncEnabled()) {

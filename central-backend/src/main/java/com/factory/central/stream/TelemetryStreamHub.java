@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Service
-public class TelemetryStreamHub implements TelemetryStreamSink {
+public class TelemetryStreamHub implements TelemetryStreamSink, CommandStreamSink {
 
     static final String EVENT_TAG_UPDATE = "TAG_UPDATE";
     static final String EVENT_ALARM = "ALARM_EVENT";
@@ -107,6 +107,7 @@ public class TelemetryStreamHub implements TelemetryStreamSink {
         fanOut(state.siteId(), state.lineId(), sub -> sub.setPendingAlarm(state));
     }
 
+    @Override
     public void publishCommand(CommandUpdateEvent event) {
         if (event == null) {
             throw new IllegalArgumentException("command event must not be null");

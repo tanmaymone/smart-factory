@@ -1,15 +1,14 @@
 # One plant-edge container per plant PC. It dials OPC UA on the factory LAN and
-# MQTT to the cloud broker. It does not join the cloud compose network.
+# MQTTS to the cloud broker. It does not join the cloud compose network.
 #
-#   $env:MQTT_BROKER_URL = "tcp://<cloud-host>:1883"
-#   $env:CENTRAL_BASE_URL = "http://<cloud-host>:8080"
+#   $env:MQTT_BROKER_URL = "ssl://<cloud-host>:8883"
+#   $env:CENTRAL_BASE_URL = "https://<cloud-host>"
+#   $env:MQTT_USERNAME = "edge-INDORE"
+#   $env:MQTT_PASSWORD = "<secret>"
 #   $env:EDGE_SITE_ID = "INDORE"
-#   $env:OPC_UA_ENDPOINT = "opc.tcp://<plc-or-prosys-host>:53530/OPCUA/SimulationServer"
-#   $env:EDGE_MQTT_CLIENT_ID = "plant-edge-indore"
 #   docker compose -f docker-compose.edge.yml up -d --build
 #
 # The tag list comes from GET /api/edge/{EDGE_SITE_ID}/config — no YAML edit, no restart.
-# EDGE_SITE_ID is case-sensitive and must match the registry site code.
 #
 # Diagnostics stay on this machine only: http://127.0.0.1:8081/
 
@@ -19,19 +18,24 @@ services:
       context: ./plant-edge-service
     environment:
       SERVER_ADDRESS: 0.0.0.0
-      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-tcp://host.docker.internal:1883}
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-ssl://host.docker.internal:8883}
+      MQTT_USERNAME: ${MQTT_USERNAME:?MQTT_USERNAME must be set}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:?MQTT_PASSWORD must be set}
+      MQTT_CA_CERT_PATH: ${MQTT_CA_CERT_PATH:-}
       OPC_UA_ENDPOINT: ${OPC_UA_ENDPOINT:-${OPC_ENDPOINT_URL:-opc.tcp://host.docker.internal:53530/OPCUA/SimulationServer}}
       EDGE_MQTT_CLIENT_ID: ${EDGE_MQTT_CLIENT_ID:-plant-edge}
       EDGE_BUFFER_PATH: /data/edge-outbound.db
       EDGE_CONFIG_SYNC_ENABLED: ${EDGE_CONFIG_SYNC_ENABLED:-true}
       EDGE_SITE_ID: ${EDGE_SITE_ID:-INDORE}
-      CENTRAL_BASE_URL: ${CENTRAL_BASE_URL:-http://host.docker.internal:8080}
+      CENTRAL_BASE_URL: ${CENTRAL_BASE_URL:-https://host.docker.internal}
+      CENTRAL_CA_CERT_PATH: ${CENTRAL_CA_CERT_PATH:-}
       EDGE_CONFIG_SNAPSHOT_PATH: /data/edge-config.json
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m -XX:MaxMetaspaceSize=128m"
     ports:
       - "127.0.0.1:8081:8081"
     volumes:
       - edge_buffer:/data
+      - ${EDGE_CERTS_DIR:-./infra/certs}:/certs:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

@@ -24,7 +24,9 @@ public record EdgeStatusSnapshot(
             String telemetryStatus,
             boolean commandSubscriberConnected,
             int bufferedCount,
-            Instant lastPublishAt) {}
+            Instant lastPublishAt,
+            boolean tlsEnabled,
+            String lastError) {}
 
     /** Sync-owned fetch state plus apply-owned active/rejected state for the central manifest. */
     public record ConfigStatus(

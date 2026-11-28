@@ -2,7 +2,7 @@ package com.factory.central.ingestion;
 
 import com.factory.central.cache.AlarmDirection;
 import com.factory.central.cache.AlarmSeverity;
-import com.factory.central.command.QualityGate;
+import com.factory.central.quality.QualityGate;
 import com.factory.central.registry.TagDataType;
 import com.factory.central.registry.TagMapping;
 import org.springframework.stereotype.Component;

@@ -2,7 +2,6 @@ package com.factory.central.stream;
 
 import com.factory.central.cache.LatestTagCache;
 import com.factory.central.cache.LatestTagState;
-import com.factory.central.ingestion.LatestTagStateResponse;
 import com.factory.central.registry.RegistryLivenessService;
 import java.io.IOException;
 import java.util.List;
@@ -75,11 +74,11 @@ final class StreamDispatch {
     }
 
     private void sendTag(StreamSession session, LatestTagState state) throws IOException {
-        session.sendEvent(nextId(), TelemetryStreamHub.EVENT_TAG_UPDATE, LatestTagStateResponse.from(state));
+        session.sendEvent(nextId(), TelemetryStreamHub.EVENT_TAG_UPDATE, StreamTagStatePayload.from(state));
     }
 
     private void sendAlarm(StreamSession session, LatestTagState state) throws IOException {
-        session.sendEvent(nextId(), TelemetryStreamHub.EVENT_ALARM, LatestTagStateResponse.from(state));
+        session.sendEvent(nextId(), TelemetryStreamHub.EVENT_ALARM, StreamTagStatePayload.from(state));
     }
 
     private String nextId() {

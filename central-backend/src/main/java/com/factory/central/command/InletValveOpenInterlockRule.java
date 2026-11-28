@@ -1,6 +1,7 @@
 package com.factory.central.command;
 
 import com.factory.central.cache.LatestTagState;
+import com.factory.central.quality.QualityGate;
 import com.factory.central.registry.TagMapping;
 import java.util.Optional;
 import org.springframework.stereotype.Component;

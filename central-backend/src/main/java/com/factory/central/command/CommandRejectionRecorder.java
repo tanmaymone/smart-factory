@@ -2,7 +2,7 @@ package com.factory.central.command;
 
 import com.factory.central.registry.TagMapping;
 import com.factory.central.stream.CommandUpdateEvent;
-import com.factory.central.stream.TelemetryStreamHub;
+import com.factory.central.stream.CommandStreamSink;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
@@ -11,11 +11,11 @@ import org.springframework.stereotype.Component;
 public class CommandRejectionRecorder {
 
     private final CommandAuditWriter auditWriter;
-    private final TelemetryStreamHub streamHub;
+    private final CommandStreamSink commandStreamSink;
 
-    public CommandRejectionRecorder(CommandAuditWriter auditWriter, TelemetryStreamHub streamHub) {
+    public CommandRejectionRecorder(CommandAuditWriter auditWriter, CommandStreamSink commandStreamSink) {
         this.auditWriter = auditWriter;
-        this.streamHub = streamHub;
+        this.commandStreamSink = commandStreamSink;
     }
 
     public void rejectAndThrow(
@@ -78,7 +78,7 @@ public class CommandRejectionRecorder {
                 status,
                 ex.getMessage(),
                 now));
-        streamHub.publishCommand(new CommandUpdateEvent(
+        commandStreamSink.publishCommand(new CommandUpdateEvent(
                 audit.getCommandId().toString(),
                 audit.getSiteId(),
                 audit.getLineId(),

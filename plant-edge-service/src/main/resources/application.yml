@@ -42,11 +42,17 @@ app:
     config-poll-ms: ${EDGE_CONFIG_POLL_MS:15000}
     config-timeout-ms: ${EDGE_CONFIG_TIMEOUT_MS:5000}
     snapshot-path: ${EDGE_CONFIG_SNAPSHOT_PATH:./data/edge-config.json}
+    central-ca-cert-path: ${CENTRAL_CA_CERT_PATH:}
   mqtt:
     # Full URL wins. On a plant PC this is the cloud broker; the laptop dev compose uses tcp://mosquitto:1883.
     broker-url: ${MQTT_BROKER_URL:tcp://localhost:${MQTT_PORT:1883}}
     client-id: ${EDGE_MQTT_CLIENT_ID:plant-edge}
     qos: 1
+    username: ${MQTT_USERNAME:}
+    password: ${MQTT_PASSWORD:}
+    tls:
+      ca-cert-path: ${MQTT_CA_CERT_PATH:}
+      verify-hostname: ${MQTT_TLS_VERIFY_HOSTNAME:true}
     reconnect-initial-ms: 1000
     reconnect-max-ms: 30000
 

@@ -1,0 +1,19 @@
+# Shared reverse-proxy routes for cloud and dev Caddyfiles.
+
+handle /actuator* {
+	respond 404
+}
+
+handle /api/stream/* {
+	reverse_proxy central-backend:8080 {
+		flush_interval -1
+	}
+}
+
+handle /api/* {
+	reverse_proxy central-backend:8080
+}
+
+handle {
+	reverse_proxy web-frontend:3000
+}

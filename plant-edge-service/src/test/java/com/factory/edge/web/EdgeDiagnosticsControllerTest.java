@@ -46,7 +46,9 @@ class EdgeDiagnosticsControllerTest {
                                         EdgeLinkHealth.DISCONNECTED,
                                         false,
                                         2,
-                                        Instant.parse("2026-01-15T10:00:00Z")),
+                                        Instant.parse("2026-01-15T10:00:00Z"),
+                                        false,
+                                        "MQTT auth failed (CONNACK 0x04)"),
                                 new EdgeStatusSnapshot.ConfigStatus(
                                         true,
                                         "INDORE",

@@ -21,33 +21,51 @@ public class MqttClientConfig {
 
     @Bean
     DefaultMqttPahoClientFactory mqttClientFactory(MqttProperties properties) {
+        DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
+        factory.setConnectionOptions(buildOptions(properties));
+        return factory;
+    }
+
+    static MqttConnectOptions buildOptions(MqttProperties properties) {
+        String brokerUrl = properties.normalizedBrokerUrl();
         MqttConnectOptions options = new MqttConnectOptions();
-        options.setServerURIs(new String[] {properties.getBrokerUrl()});
+        options.setServerURIs(new String[] {brokerUrl});
         options.setAutomaticReconnect(true);
         options.setCleanSession(true);
         options.setConnectionTimeout(10);
 
-        DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
-        factory.setConnectionOptions(options);
-        return factory;
+        if (properties.getUsername() != null && !properties.getUsername().isBlank()) {
+            options.setUserName(properties.getUsername().trim());
+            options.setPassword(properties.getPassword().toCharArray());
+        }
+
+        if (properties.isTls()) {
+            MqttProperties.Tls tls = properties.getTls();
+            options.setSocketFactory(MqttTlsSupport.buildSocketFactory(tls));
+            options.setHttpsHostnameVerificationEnabled(tls.isVerifyHostname());
+        }
+
+        return options;
     }
 
     @Bean(destroyMethod = "")
     IMqttClient mqttClient(DefaultMqttPahoClientFactory mqttClientFactory, MqttProperties properties)
             throws MqttException {
-        this.mqttClient = mqttClientFactory.getClientInstance(properties.getBrokerUrl(), properties.getClientId());
+        String brokerUrl = properties.normalizedBrokerUrl();
+        this.mqttClient = mqttClientFactory.getClientInstance(brokerUrl, properties.getClientId());
         try {
             mqttClient.connect(mqttClientFactory.getConnectionOptions());
             log.info(
-                    "MQTT client connected to {} (clientId={}, qos={})",
-                    properties.getBrokerUrl(),
+                    "MQTT client connected to {} (clientId={}, qos={}, tls={})",
+                    brokerUrl,
                     properties.getClientId(),
-                    properties.getQos());
+                    properties.getQos(),
+                    properties.isTls());
         } catch (MqttException ex) {
             log.warn(
-                    "MQTT broker unreachable at {}; registry API will still start. cause={}",
-                    properties.getBrokerUrl(),
-                    ex.getMessage());
+                    "MQTT broker unreachable at {}; registry API will still start. {}",
+                    brokerUrl,
+                    MqttTlsSupport.describeMqttException(ex));
         }
         return mqttClient;
     }

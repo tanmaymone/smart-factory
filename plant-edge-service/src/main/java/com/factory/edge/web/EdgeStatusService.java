@@ -105,12 +105,17 @@ public class EdgeStatusService {
 
     private MqttStatus mqtt() {
         EdgeLinkHealth health = telemetryLink.health();
+        String telemetryErr = health.lastError();
+        String commandErr = commandLink.lastError();
+        String lastError = telemetryErr != null ? telemetryErr : commandErr;
         return new MqttStatus(
-                mqttProperties.getBrokerUrl(),
+                mqttProperties.normalizedBrokerUrl(),
                 health.status(),
                 commandLink.isConnected(),
                 health.bufferedCount(),
-                health.lastPublishAt());
+                health.lastPublishAt(),
+                mqttProperties.isTls(),
+                lastError);
     }
 
     /** Central-config tags win once they exist; YAML stays the source only in static mode. */

@@ -1,4 +1,4 @@
-package com.factory.central.command;
+package com.factory.central.quality;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

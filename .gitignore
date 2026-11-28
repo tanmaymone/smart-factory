@@ -19,3 +19,8 @@ Thumbs.db
 *.log
 .idea/
 *.iml
+
+# M4.1 generated broker TLS secrets (commit acl.example and scripts only)
+infra/certs/
+infra/mosquitto/passwd
+infra/mosquitto/acl
