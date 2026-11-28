@@ -26,6 +26,10 @@ class AccessRouteTest {
         assertThat(AccessRoute.classify("GET", "/api/access/actors")).contains(AccessAction.ACTOR_ADMIN);
         assertThat(AccessRoute.classify("POST", "/api/onboarding/probe"))
                 .contains(AccessAction.ONBOARDING_PROBE);
+        assertThat(AccessRoute.classify("GET", "/api/onboarding/templates")).contains(AccessAction.OPEN);
+        assertThat(AccessRoute.classify("GET", "/api/onboarding/templates/reactor")).contains(AccessAction.OPEN);
+        assertThat(AccessRoute.classify("HEAD", "/api/onboarding/templates/vessel")).contains(AccessAction.OPEN);
+        assertThat(AccessRoute.classify("GET", "/api/onboarding/checklist")).contains(AccessAction.OPEN);
     }
 
     @Test
@@ -47,6 +51,10 @@ class AccessRouteTest {
         assertThat(AccessRoute.classify("GET", "/api/onboarding/probe")).isEqualTo(Optional.empty());
         assertThat(AccessRoute.classify("POST", "/api/onboarding")).isEqualTo(Optional.empty());
         assertThat(AccessRoute.classify("POST", "/api/onboarding/probe/extra")).isEqualTo(Optional.empty());
+        assertThat(AccessRoute.classify("POST", "/api/onboarding/templates")).isEqualTo(Optional.empty());
+        assertThat(AccessRoute.classify("POST", "/api/onboarding/templates/reactor")).isEqualTo(Optional.empty());
+        assertThat(AccessRoute.classify("GET", "/api/onboarding/templates/reactor/extra")).isEqualTo(Optional.empty());
+        assertThat(AccessRoute.classify("POST", "/api/onboarding/checklist")).isEqualTo(Optional.empty());
         assertThat(AccessRoute.classify("GET", "/api/edge/config")).isEqualTo(Optional.empty());
         assertThat(AccessRoute.classify("GET", "/api/edge/INDORE/config/extra")).isEqualTo(Optional.empty());
         assertThat(AccessRoute.classify("POST", "/api/edge/INDORE/config")).isEqualTo(Optional.empty());

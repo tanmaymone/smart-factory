@@ -11,8 +11,14 @@ include:
   - docker-compose.edge.yml
 
 services:
+  central-backend:
+    environment:
+      APP_ONBOARDING_PROBE_ENABLED: "true"
+      EDGE_BASE_URL: http://plant-edge:8081
+
   plant-edge:
     environment:
+      APP_ONBOARDING_PROBE_ENABLED: "true"
       MQTT_BROKER_URL: tcp://mosquitto:1883
       CENTRAL_BASE_URL: http://central-backend:8080
       EDGE_SITE_ID: ${EDGE_SITE_ID:-INDORE}

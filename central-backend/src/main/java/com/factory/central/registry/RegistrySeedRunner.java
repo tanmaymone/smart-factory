@@ -36,6 +36,10 @@ public class RegistrySeedRunner implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
+        if (!registryProperties.isSeedEnabled()) {
+            log.info("Registry seed skipped: app.registry.seed-enabled=false");
+            return;
+        }
         TreeSet<String> bumpedSites = new TreeSet<>();
         ensureSite(new Site("INDORE", "Indore Plant", "Asia/Kolkata", SiteStatus.ONLINE));
         ensureSite(new Site("PUNE", "Pune Plant", "Asia/Kolkata", SiteStatus.ONLINE));

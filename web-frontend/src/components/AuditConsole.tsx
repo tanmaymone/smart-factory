@@ -127,7 +127,7 @@ export function AuditConsole() {
         title="Command Audit Logbook"
         subtitle={
           <>
-            {selection.site.name} · {selection.line.name}
+            {selection.site?.name ?? "—"} · {selection.line?.name ?? "—"}
             {loading ? " · Loading…" : null}
           </>
         }

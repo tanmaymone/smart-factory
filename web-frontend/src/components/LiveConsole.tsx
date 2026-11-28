@@ -36,7 +36,11 @@ export function LiveConsole() {
     <div className="flex flex-col gap-4">
       <ConsoleHeader
         title="Live Telemetry & Alarm Console"
-        subtitle={<>{selection.site.name} · {selection.line.name}</>}
+        subtitle={
+          <>
+            {selection.site?.name ?? "—"} · {selection.line?.name ?? "—"}
+          </>
+        }
         catalog={catalog}
         siteId={selection.siteId}
         lineId={selection.lineId}

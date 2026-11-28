@@ -20,7 +20,10 @@ class OnboardingProbeMapperConfigTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(
                     org.springframework.boot.autoconfigure.AutoConfigurations.of(JacksonAutoConfiguration.class))
-            .withUserConfiguration(OnboardingProbeMapperConfig.class);
+            .withUserConfiguration(OnboardingProbeMapperConfig.class)
+            .withPropertyValues(
+                    "app.onboarding.probe-enabled=false",
+                    "app.onboarding.edge-base-url=http://127.0.0.1:8081");
 
     @Test
     void probeMapperLeavesTheApplicationMapperInPlaceAndPropertiesDefaultOff() {

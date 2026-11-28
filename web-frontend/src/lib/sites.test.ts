@@ -27,6 +27,14 @@ describe("SF-M17 site catalog", () => {
     expect(resolveSelection("pune", "LINE-01").siteId).toBe("INDORE");
   });
 
+  it("returns null parents when catalog is empty", () => {
+    const selection = resolveSelection(null, null, []);
+    expect(selection.site).toBeNull();
+    expect(selection.line).toBeNull();
+    expect(selection.siteId).toBe("");
+    expect(selection.lineId).toBe("");
+  });
+
   it("does not duplicate exact-case catalog entries", () => {
     const merged = mergeCatalog(SITE_CATALOG, [
       { siteId: "INDORE", lineId: "LINE-01" },

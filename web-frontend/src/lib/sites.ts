@@ -44,8 +44,8 @@ export function normalizeId(value: string | null | undefined): string {
 export type Selection = {
   siteId: string;
   lineId: string;
-  site: SiteInfo;
-  line: LineInfo;
+  site: SiteInfo | null;
+  line: LineInfo | null;
 };
 
 export function resolveSelection(
@@ -56,10 +56,31 @@ export function resolveSelection(
   const normalizedSite = normalizeId(siteId);
   const normalizedLine = normalizeId(lineId);
 
+  if (catalog.length === 0) {
+    return {
+      siteId: normalizedSite,
+      lineId: normalizedLine,
+      site: null,
+      line: null,
+    };
+  }
+
   const site =
     catalog.find((entry) => entry.id === normalizedSite) ??
     catalog.find((entry) => entry.id === DEFAULT_SITE_ID) ??
     catalog[0];
+
+  if (site.lines.length === 0) {
+    const line = normalizedLine
+      ? (site.lines.find((entry) => entry.id === normalizedLine) ?? null)
+      : null;
+    return {
+      siteId: site.id,
+      lineId: line?.id ?? normalizedLine,
+      site,
+      line,
+    };
+  }
 
   const line =
     site.lines.find((entry) => entry.id === normalizedLine) ?? site.lines[0];

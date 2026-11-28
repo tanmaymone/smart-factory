@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +19,8 @@ import {
   resolveEntityLabels,
   SITE_LABEL_PRESETS,
 } from "@/lib/entityLabels";
+import { OnboardingStep3Templates } from "@/components/onboarding/OnboardingStep3Templates";
 import { parseTagImport } from "@/lib/onboardingTagImport";
-import { prosysReactorDrafts } from "@/lib/onboardingTemplates";
 import type { SiteInfo } from "@/lib/sites";
 import type { SecurityMode } from "@/lib/types";
 import {
@@ -97,6 +97,7 @@ export function OnboardingStepBody({
   const lineWord = entityLabels.lineLabel;
   const siteLower = siteWord.toLowerCase();
   const lineLower = lineWord.toLowerCase();
+  const [importText, setImportText] = useState("");
 
   if (state.step === 1) {
   const intro = (
@@ -282,43 +283,53 @@ export function OnboardingStepBody({
     );
   }
   if (state.step === 3) {
+    const applyImportText = (text: string) => {
+      setImportText(text);
+      const parsed = parseTagImport(text, {
+        siteId: state.siteId,
+        lineId: state.lineId,
+        endpointUrl: state.endpointUrl,
+      });
+      if (parsed.error) setNotice(parsed.error);
+      else {
+        setNotice(null);
+        setState((current) => ({ ...bumpStep3Edit(current), drafts: parsed.drafts }));
+      }
+    };
+    const writableCount = state.drafts.filter((row) => row.writable).length;
+    const types = [...new Set(state.drafts.map((row) => row.dataType))].join(", ") || "—";
     return (
       <div className="flex flex-col gap-3">
         <p className="text-sm text-slate-400">{STEP_INTRO[3]}</p>
+        <OnboardingStep3Templates
+          siteId={state.siteId}
+          lineId={state.lineId}
+          endpointUrl={state.endpointUrl}
+          disabled={locked}
+          draftCount={state.drafts.length}
+          onLoadDrafts={(drafts) =>
+            setState((current) => ({ ...bumpStep3Edit(current), drafts }))
+          }
+          onImportText={applyImportText}
+        />
         <OnboardingField
           id="onb-tag-import"
           label="Tag import"
-          hint="Paste JSON or CSV tag rows. Use Load reactor set for the Prosys demo tags."
+          hint="Paste JSON or CSV (19 batch columns). Templates round-trip losslessly into Save tags."
         >
           <Textarea
             id="onb-tag-import"
             className="mono min-h-40 font-mono text-xs"
             disabled={locked}
+            value={importText}
             placeholder='[{"tagCode":"TEMP_101", ...}]'
-            onChange={(event) => {
-              const parsed = parseTagImport(event.target.value, {
-                siteId: state.siteId,
-                lineId: state.lineId,
-                endpointUrl: state.endpointUrl,
-              });
-              if (parsed.error) setNotice(parsed.error);
-              else setState((current) => ({ ...bumpStep3Edit(current), drafts: parsed.drafts }));
-            }}
+            onChange={(event) => applyImportText(event.target.value)}
           />
         </OnboardingField>
+        <p className="font-mono text-xs text-slate-400">
+          Summary: {state.drafts.length} rows · types {types} · writable {writableCount}
+        </p>
         <div className="flex gap-2">
-          <Button
-            disabled={locked}
-            variant="secondary"
-            onClick={() =>
-              setState((current) => ({
-                ...bumpStep3Edit(current),
-                drafts: prosysReactorDrafts(current.siteId, current.lineId, current.endpointUrl),
-              }))
-            }
-          >
-            Load reactor set
-          </Button>
           <Button disabled={locked} onClick={onSave}>
             Save tags
           </Button>

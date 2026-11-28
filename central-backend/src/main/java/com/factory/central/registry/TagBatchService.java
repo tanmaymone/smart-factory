@@ -190,6 +190,7 @@ public class TagBatchService {
         return new TagBatchResponse(rows.size(), created, updated, failed, results);
     }
 
+    @Transactional
     public TagBatchResponse importCsv(ActorContext actor, String body) {
         TagBatchCsvParser.ParseResult parsed = TagBatchCsvParser.parse(body);
         if (!parsed.ok()) {

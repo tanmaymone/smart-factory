@@ -29,6 +29,24 @@ class StoreAndForwardQueueTest {
     Path tempDir;
 
     @Test
+    @Tag("SF-M36")
+    void isolatedBufferFilesEnqueueIndependently() {
+        ControllableLink linkA = new ControllableLink();
+        ControllableLink linkB = new ControllableLink();
+        linkA.setAvailable(false);
+        linkB.setAvailable(false);
+        try (StoreAndForwardQueue queueA = newQueue(linkA, 20);
+                StoreAndForwardQueue queueB = newQueue(linkB, 20)) {
+            queueA.offer(record("PLANT_A", 1));
+            queueB.offer(record("PLANT_B", 2));
+            assertThat(queueA.depth()).isEqualTo(1);
+            assertThat(queueB.depth()).isEqualTo(1);
+            assertThat(linkA.published).isEmpty();
+            assertThat(linkB.published).isEmpty();
+        }
+    }
+
+    @Test
     void disconnectBuffersThenOrderedReplay() {
         ControllableLink link = new ControllableLink();
         link.setAvailable(false);

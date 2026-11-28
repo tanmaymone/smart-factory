@@ -42,6 +42,14 @@ public final class AccessRoute {
         if ("/api/onboarding/probe".equals(normalizedPath) && "POST".equals(normalizedMethod)) {
             return Optional.of(AccessAction.ONBOARDING_PROBE);
         }
+        if (isOnboardingTemplates(normalizedPath)
+                && ("GET".equals(normalizedMethod) || "HEAD".equals(normalizedMethod))) {
+            return Optional.of(AccessAction.OPEN);
+        }
+        if ("/api/onboarding/checklist".equals(normalizedPath)
+                && ("GET".equals(normalizedMethod) || "HEAD".equals(normalizedMethod))) {
+            return Optional.of(AccessAction.OPEN);
+        }
         if (startsWith(normalizedPath, "/api/telemetry")
                 || startsWith(normalizedPath, "/api/stream")
                 || startsWith(normalizedPath, "/actuator")) {
@@ -107,6 +115,18 @@ public final class AccessRoute {
 
     private static boolean isCommandsRoot(String path) {
         return "/api/commands".equals(path);
+    }
+
+    /** {@code /api/onboarding/templates} or {@code /api/onboarding/templates/{key}} — one segment after templates. */
+    private static boolean isOnboardingTemplates(String path) {
+        if ("/api/onboarding/templates".equals(path)) {
+            return true;
+        }
+        if (!startsWith(path, "/api/onboarding/templates/")) {
+            return false;
+        }
+        String rest = path.substring("/api/onboarding/templates/".length());
+        return rest.indexOf('/') < 0 && !rest.isEmpty();
     }
 
     private static boolean startsWith(String path, String prefix) {

@@ -28,14 +28,21 @@ export function SiteLineSwitcher({
   const site = catalog.find((entry) => entry.id === siteId) ?? catalog[0];
   const lines = site?.lines ?? [];
   const labels = resolveEntityLabels(site);
+  const catalogEmpty = catalog.length === 0;
+  const siteValue = catalog.some((entry) => entry.id === siteId) ? siteId : undefined;
+  const lineValue = lines.some((entry) => entry.id === lineId) ? lineId : undefined;
 
   return (
     <div className="flex flex-wrap items-end gap-3">
       <label className="flex min-w-[10rem] flex-col gap-1">
         <span className="text-xs uppercase tracking-wide text-slate-400">{labels.siteLabel}</span>
-        <Select value={siteId} onValueChange={onSiteChange}>
+        <Select
+          value={siteValue}
+          onValueChange={onSiteChange}
+          disabled={catalogEmpty}
+        >
           <SelectTrigger aria-label={labels.siteLabel} className="w-[12rem]">
-            <SelectValue placeholder={labels.siteLabel} />
+            <SelectValue placeholder={catalogEmpty ? "No sites yet" : labels.siteLabel} />
           </SelectTrigger>
           <SelectContent>
             {catalog.map((entry) => (
@@ -49,9 +56,13 @@ export function SiteLineSwitcher({
 
       <label className="flex min-w-[10rem] flex-col gap-1">
         <span className="text-xs uppercase tracking-wide text-slate-400">{labels.lineLabel}</span>
-        <Select value={lineId} onValueChange={onLineChange}>
+        <Select
+          value={lineValue}
+          onValueChange={onLineChange}
+          disabled={catalogEmpty || lines.length === 0}
+        >
           <SelectTrigger aria-label={labels.lineLabel} className="w-[12rem]">
-            <SelectValue placeholder={labels.lineLabel} />
+            <SelectValue placeholder={lines.length === 0 ? "No lines" : labels.lineLabel} />
           </SelectTrigger>
           <SelectContent>
             {lines.map((entry) => (

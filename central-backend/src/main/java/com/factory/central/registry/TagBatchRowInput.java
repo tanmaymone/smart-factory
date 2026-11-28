@@ -20,7 +20,10 @@ public final class TagBatchRowInput {
         Map<String, String> fields = new LinkedHashMap<>();
         if (raw != null) {
             for (Map.Entry<String, Object> entry : raw.entrySet()) {
-                fields.put(entry.getKey(), entry.getValue() == null ? null : String.valueOf(entry.getValue()));
+                if (entry.getValue() == null) {
+                    continue;
+                }
+                fields.put(entry.getKey(), String.valueOf(entry.getValue()));
             }
         }
         return new TagBatchRowInput(fields, null, false);

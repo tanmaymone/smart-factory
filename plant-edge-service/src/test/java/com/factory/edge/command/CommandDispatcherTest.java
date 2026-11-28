@@ -80,6 +80,16 @@ class CommandDispatcherTest {
     }
 
     @Test
+    @Tag("SF-M36")
+    void foreignSiteCommandTopicIsDroppedWithoutAck() throws Exception {
+        dispatcher.handle(
+                "site/SITE-COLD/line/REACTOR-01/commands",
+                bytes(command("foreign", "VALVE_101_POS", "nsu=http://www.prosysopc.com/OPCUA/SimulationNodes/;i=1001", "OPC_UA")));
+        verify(writer, never()).write(any(), any(), any(), any(), any(), any(), any(), any());
+        assertThat(published).isEmpty();
+    }
+
+    @Test
     void unconfiguredSiteIgnoredAndTopicPayloadMismatchDroppedAndMissingCommandIdDropped()
             throws Exception {
         dispatcher.handle(

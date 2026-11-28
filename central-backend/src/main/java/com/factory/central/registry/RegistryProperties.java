@@ -12,6 +12,17 @@ public class RegistryProperties {
      */
     private String opcEndpointUrl = "opc.tcp://localhost:53530/OPCUA/SimulationServer";
 
+    /** When false, RegistrySeedRunner skips INDORE/PUNE demo seed (cold-start dry runs). */
+    private boolean seedEnabled = true;
+
+    public boolean isSeedEnabled() {
+        return seedEnabled;
+    }
+
+    public void setSeedEnabled(boolean seedEnabled) {
+        this.seedEnabled = seedEnabled;
+    }
+
     public String getOpcEndpointUrl() {
         return opcEndpointUrl;
     }

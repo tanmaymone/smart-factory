@@ -7,7 +7,6 @@ import { normalizeLineCode, normalizeSiteCode } from "@/lib/registryNormalize";
 import { DEFAULT_LINE_LABEL, DEFAULT_SITE_LABEL } from "@/lib/entityLabels";
 import {
   resolveSelection,
-  SITE_CATALOG,
   type LineInfo,
   type Selection,
   type SiteInfo,
@@ -49,7 +48,7 @@ export function useRegistryCatalogSelection() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const [sites, setSites] = useState<SiteInfo[]>(SITE_CATALOG);
+  const [sites, setSites] = useState<SiteInfo[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState(false);
   const fetchGeneration = useRef(0);
@@ -85,12 +84,28 @@ export function useRegistryCatalogSelection() {
 
   useEffect(() => {
     if (catalogLoading || preserveUrl) return;
+    if (!hasValidLineSelection) {
+      if (sites.length === 0) return;
+      if (!rawSite && !rawLine) return;
+    }
     if (rawSite === selection.siteId && rawLine === selection.lineId) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set("siteId", selection.siteId);
     params.set("lineId", selection.lineId);
     router.replace(`${pathname}?${params.toString()}`);
-  }, [catalogLoading, preserveUrl, rawSite, rawLine, selection.siteId, selection.lineId, router, searchParams, pathname]);
+  }, [
+    catalogLoading,
+    preserveUrl,
+    hasValidLineSelection,
+    sites.length,
+    rawSite,
+    rawLine,
+    selection.siteId,
+    selection.lineId,
+    router,
+    searchParams,
+    pathname,
+  ]);
 
   const replaceSelection = (siteId: string, lineId: string) => {
     const next = resolveSelection(siteId, lineId, sites);

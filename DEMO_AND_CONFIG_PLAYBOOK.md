@@ -2,6 +2,8 @@
 
 Practical dry-run checklist and configuration guide for the Smart Factory stack: TimescaleDB + MQTT, Prosys OPC UA, plant-edge service, Spring Boot backend, and Next.js UI.
 
+For **empty-DB plant onboarding**, downloadable tag templates, and the five-domain pre-cutover checklist, use [PLANT_ONBOARDING_PLAYBOOK.md](PLANT_ONBOARDING_PLAYBOOK.md).
+
 Use `curl.exe` in PowerShell so the shell does not invoke the `Invoke-WebRequest` alias named `curl`. Prefer `--data-binary "@file.json"` (or `.\scripts\Prepare-Demo.ps1`) for request bodies; inline `-d "{...}"` is easy to mangle under PowerShell quoting.
 
 Helper script (health checks, interlock toggle, valve ingest, NodeId PUT):

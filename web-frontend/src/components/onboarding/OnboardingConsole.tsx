@@ -2,6 +2,7 @@
 
 import { ConsoleHeader, ConsoleHeaderFallback } from "@/components/ConsoleHeader";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
+import { PreCutoverChecklistCard } from "@/components/onboarding/PreCutoverChecklistCard";
 import { useSiteLineSelection } from "@/hooks/useSiteLineSelection";
 
 export function OnboardingConsole() {
@@ -10,7 +11,12 @@ export function OnboardingConsole() {
     <div className="flex flex-col gap-4">
       <ConsoleHeader
         title="Plant Onboarding"
-        subtitle={<>{catalog.selection.site.name} · {catalog.selection.line.name}</>}
+        subtitle={
+          <>
+            {catalog.selection.site?.name ?? "No site selected"} ·{" "}
+            {catalog.selection.line?.name ?? "No line selected"}
+          </>
+        }
         catalog={catalog.catalog}
         siteId={catalog.selection.siteId}
         lineId={catalog.selection.lineId}
@@ -24,6 +30,10 @@ export function OnboardingConsole() {
         refreshCatalog={catalog.refreshCatalog}
         catalogError={catalog.catalogError}
         replaceSelection={catalog.replaceSelection}
+      />
+      <PreCutoverChecklistCard
+        siteId={catalog.selection.siteId}
+        lineId={catalog.selection.lineId}
       />
     </div>
   );

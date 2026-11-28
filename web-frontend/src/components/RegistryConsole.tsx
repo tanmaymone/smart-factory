@@ -145,7 +145,7 @@ export function RegistryConsole() {
         title="Tag Registry"
         subtitle={
           <>
-            {selection.site.name} · {selection.line.name}
+            {selection.site?.name ?? "—"} · {selection.line?.name ?? "—"}
           </>
         }
         catalog={catalog}

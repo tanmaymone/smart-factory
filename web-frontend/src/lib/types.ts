@@ -270,3 +270,59 @@ export type RegistryErrorResponse = {
   message: string;
   fieldErrors: RegistryFieldError[];
 };
+
+export type ChecklistCategory =
+  | "OPC_UA_SECURITY"
+  | "MQTT_BROKER_SECURITY"
+  | "HEARTBEAT_AND_STALENESS"
+  | "TIMESCALEDB_RETENTION"
+  | "EDGE_PROVISIONING";
+
+export type EquipmentTemplateSummary = {
+  templateKey: string;
+  displayName: string;
+  equipmentType: string;
+  description: string;
+  defaultLineId: string;
+  prosysReady: boolean;
+  tagCount: number;
+  supportedFormats: string[];
+  downloadUrls: { json: string; csv: string };
+};
+
+export type EquipmentTemplateCatalogResponse = {
+  schemaVersion: number;
+  templates: EquipmentTemplateSummary[];
+};
+
+export type EquipmentTemplateJsonPayload = {
+  tags: TagMappingRequest[];
+};
+
+export type PreCutoverChecklistItem = {
+  id: string;
+  category: ChecklistCategory;
+  title: string;
+  description: string;
+  verificationMethod: string;
+  verificationCommand: string;
+  passCriteria: string;
+  severity: "CUTOVER_BLOCKER" | "DEV_ADVISORY";
+  runnableInCurrentRelease: boolean;
+  milestoneGate: string | null;
+  currentDevPosture: string;
+  productionRequirement: string;
+};
+
+export type PreCutoverChecklistResponse = {
+  schemaVersion: number;
+  releaseScope: string;
+  playbookPath: string;
+  summary: {
+    total: number;
+    runnableNow: number;
+    deferredMilestoneGates: number;
+    cutoverBlockers: number;
+  };
+  items: PreCutoverChecklistItem[];
+};

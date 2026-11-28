@@ -45,6 +45,9 @@ services:
       MQTT_BROKER_URL: tcp://mosquitto:1883
       OPC_ENDPOINT_URL: ${OPC_ENDPOINT_URL:-opc.tcp://localhost:53530/OPCUA/SimulationServer}
       APP_BOOTSTRAP_TOKEN: ${APP_BOOTSTRAP_TOKEN:-}
+      APP_REGISTRY_SEED_ENABLED: ${APP_REGISTRY_SEED_ENABLED:-true}
+      APP_ONBOARDING_PROBE_ENABLED: ${APP_ONBOARDING_PROBE_ENABLED:-false}
+      EDGE_BASE_URL: ${EDGE_BASE_URL:-http://127.0.0.1:8081}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx512m -XX:MaxMetaspaceSize=128m"
     ports:
       - "8080:8080"
